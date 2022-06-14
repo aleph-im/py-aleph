@@ -17,7 +17,7 @@ def get_defaults():
             "jobs": {
                 "pending_messages": {
                     "max_concurrency": 2000,
-                    "store": 100,
+                    "store": 30,
                 },
                 "pending_txs": {
                     "max_concurrency": 20,
@@ -85,6 +85,7 @@ def get_defaults():
             "gateway_port": 8080,
             "id": None,
             "alive_topic": "ALEPH_ALIVE",
+            "sync_topic": "ALEPH_SYNC",
             "reconnect_delay": 60,
             "peers": [
                 "/dnsaddr/api1.aleph.im/ipfs/12D3KooWNgogVS6o8fVsPdzh2FJpCdJJLVSgJT38XGE1BJoCerHx",

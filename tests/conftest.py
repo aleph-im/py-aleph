@@ -1,5 +1,6 @@
 import asyncio
-import os
+import json
+from pathlib import Path
 
 import pymongo
 import pytest_asyncio
@@ -7,6 +8,7 @@ from configmanager import Config
 
 from aleph.config import get_defaults
 from aleph.model import init_db
+from aleph.model.messages import Message
 from aleph.web import create_app
 
 TEST_DB = "ccn_automated_tests"
@@ -30,6 +32,7 @@ async def test_db():
     init_db(config, ensure_indexes=True)
 
     from aleph.model import db
+
     yield db
 
 
@@ -43,3 +46,20 @@ async def ccn_api_client(aiohttp_client):
     client = await aiohttp_client(app)
 
     return client
+
+
+@pytest_asyncio.fixture
+async def fixture_messages(test_db):
+    """
+    Some generic message fixtures to insert in the messages collection for
+    tests fetching data from the DB.
+    """
+
+    fixtures_dir = Path(__file__).parent / "fixtures"
+    fixtures_file = fixtures_dir / "fixture_messages.json"
+
+    with fixtures_file.open() as f:
+        messages = json.load(f)
+
+    await Message.collection.insert_many(messages)
+    return messages

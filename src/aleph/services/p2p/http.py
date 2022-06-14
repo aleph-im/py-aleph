@@ -6,7 +6,7 @@ import asyncio
 import base64
 import logging
 from random import sample
-from typing import Optional
+from typing import Optional, Dict
 
 import aiohttp
 
@@ -43,6 +43,18 @@ async def api_get_request(base_uri, method, timeout=1):
         LOGGER.exception("Error in retrieval")
         result = None
     return result
+
+
+async def get_messages_from_peer(
+    peer_uri: str, item_hash: str, timeout: int
+) -> Optional[Dict]:
+    result = await api_get_request(
+        base_uri=peer_uri, method=f"messages.json?hashes={item_hash}", timeout=timeout
+    )
+    if result is None:
+        return None
+
+    return result["messages"]
 
 
 async def get_peer_hash_content(

@@ -1,12 +1,7 @@
 import itertools
-import json
-from pathlib import Path
 from typing import Dict, Iterable, List
 
 import pytest
-import pytest_asyncio
-
-from aleph.model.messages import Message
 
 MESSAGES_URI = "/api/v0/messages.json"
 
@@ -27,18 +22,6 @@ def assert_messages_equal(messages: Iterable[Dict], expected_messages: Iterable[
         assert message["item_content"] == expected_message["item_content"]
         assert message["sender"] == expected_message["sender"]
         assert message["signature"] == expected_message["signature"]
-
-
-@pytest_asyncio.fixture
-async def fixture_messages(test_db):
-    fixtures_dir = Path(__file__).parent / "fixtures"
-    fixtures_file = fixtures_dir / "fixture_messages.json"
-
-    with fixtures_file.open() as f:
-        messages = json.load(f)
-
-    await Message.collection.insert_many(messages)
-    return messages
 
 
 @pytest.mark.asyncio

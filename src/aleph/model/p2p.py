@@ -21,6 +21,16 @@ class Peer(BaseClass):
         IndexModel([("last_seen", DESCENDING)]),
     ]
 
+    @classmethod
+    async def get_peer_address(cls, peer_id: str, peer_type: str) -> Optional[str]:
+        peer = await cls.collection.find_one(
+            {"sender": peer_id, "type": peer_type}, {"_id": 0, "address": 1}
+        )
+        if peer is None:
+            return None
+
+        return peer["address"]
+
 
 async def get_peers(peer_type: Optional[str] = None, hours: int = 2) -> AsyncIterator[str]:
     """Returns current peers.

@@ -5,7 +5,7 @@ from dataclasses import asdict
 from enum import IntEnum
 from typing import Dict, Optional, Tuple, List
 
-from aleph_message.models import MessageType
+from aleph_message.models import MessageType, ItemType
 from bson import ObjectId
 from pymongo import UpdateOne
 
@@ -28,6 +28,7 @@ from aleph.permissions import check_sender_authorization
 from aleph.storage import get_json, pin_hash, add_json, get_message_content
 from .tx_context import TxContext
 from ..schemas.pending_messages import BasePendingMessage
+from ..utils import item_type_from_hash
 
 LOGGER = logging.getLogger("chains.common")
 
@@ -104,6 +105,23 @@ async def mark_message_for_retry(
         LOGGER.debug(f"Update result {result}")
 
 
+def update_message_item_type(message_dict: Dict) -> Dict:
+    """
+    Ensures that the item_type field of a message is present.
+    Sets it to the default value if the field is not specified.
+    """
+    if "item_type" in message_dict:
+        return message_dict
+
+    if "item_content" in message_dict:
+        item_type = ItemType.inline
+    else:
+        item_type = item_type_from_hash(message_dict["item_hash"])
+
+    message_dict["item_type"] = item_type
+    return message_dict
+
+
 async def incoming(
     message: Dict,
     chain_name: Optional[str] = None,
@@ -119,6 +137,10 @@ async def incoming(
     For regular messages it will be marked as confirmed
     if existing in database, created if not.
     """
+
+    # TODO: this is a temporary fix to set the item_type of the message to the correct
+    #       value. This should be replaced by a full use of Pydantic models.
+    message = update_message_item_type(message)
 
     item_hash = message["item_hash"]
     sender = message["sender"]

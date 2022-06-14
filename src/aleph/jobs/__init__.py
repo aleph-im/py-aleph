@@ -4,6 +4,7 @@ from typing import Dict, List, Coroutine
 
 from aleph.jobs.process_pending_messages import pending_messages_subprocess, retry_messages_task
 from aleph.jobs.process_pending_txs import pending_txs_subprocess, handle_txs_task
+from aleph.jobs.sync_unconfirmed_messages import sync_unconfirmed_messages_subprocess
 from aleph.jobs.reconnect_ipfs import reconnect_ipfs_job
 
 LOGGER = logging.getLogger("jobs")
@@ -32,8 +33,13 @@ def start_jobs(
             target=pending_txs_subprocess,
             args=(config_values, api_servers),
         )
+        sync_unconfirmed_messages_process = Process(
+            target=sync_unconfirmed_messages_subprocess,
+            args=(config_values, api_servers),
+        )
         p1.start()
         p2.start()
+        sync_unconfirmed_messages_process.start()
     else:
         tasks.append(retry_messages_task(config=config, shared_stats=shared_stats))
         tasks.append(handle_txs_task(config))

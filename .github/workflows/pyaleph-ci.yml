@@ -53,6 +53,9 @@ jobs:
     - name: Check types
       run: |
         mypy src/
+    - name: Check types in tests
+      run: |
+        mypy tests/
     - name: Run unit tests
       run: |
         pytest -v .

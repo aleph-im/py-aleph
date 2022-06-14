@@ -22,7 +22,7 @@ and adjust the ownership of the folder:
 
     mkdir keys
     cp node-secret.key keys/
-    docker run --rm -ti --user root -v $(pwd)/keys:/opt/pyaleph/keys alephim/pyaleph-node:|pyaleph_version| chown -R aleph:aleph /opt/pyaleph/keys
+    docker run --rm --user root --entrypoint "" -v $(pwd)/keys:/opt/pyaleph/keys alephim/pyaleph-node:|pyaleph_version| chown -R aleph:aleph /opt/pyaleph/keys
 
 Download the latest image
 -------------------------
@@ -38,6 +38,12 @@ Upgrade the docker-compose file:
 
     docker-compose [-f <docker-compose-file>] pull
 
+Copy your customizations to the new docker-compose if relevant:
+
+.. parsed-literal::
+
+    diff --color --side-by-side docker-compose-old.yml docker-compose.yml
+
 Upgrade your node
 -----------------
 
@@ -46,7 +52,9 @@ Upgrade your node
     docker-compose [-f <docker-compose-file>] down
 
     docker-compose [-f <docker-compose-file>] \
-            run pyaleph /opt/pyaleph/migrations/config_updater.py \
+            run \
+            --entrypoint /opt/pyaleph/migrations/config_updater.py \
+            pyaleph \
             --key-dir /opt/pyaleph/keys \
             --key-file /opt/pyaleph/keys/node-secret.key \
             --config /opt/pyaleph/config.yml \

@@ -61,7 +61,7 @@ async def test_db_operations_delete_one(test_db):
 
 
 @pytest.mark.asyncio
-async def test_db_operations_insert_and_delete(test_db, fixture_messages):
+async def test_db_operations_insert_and_delete(test_db, fixture_chain_data):
     """
     Test a typical case where we insert several messages and delete a pending TX.
     """
@@ -72,7 +72,7 @@ async def test_db_operations_insert_and_delete(test_db, fixture_messages):
 
     db_operations = [
         DbBulkOperation(collection=PendingMessage, operation=InsertOne(msg))
-        for msg in fixture_messages
+        for msg in fixture_chain_data
     ]
 
     db_operations.append(
@@ -89,13 +89,13 @@ async def test_db_operations_insert_and_delete(test_db, fixture_messages):
     tx_end_count = await PendingTX.count({})
     msg_end_count = await PendingMessage.count({})
     assert tx_end_count - tx_start_count == -1
-    assert msg_end_count - msg_start_count == len(fixture_messages)
+    assert msg_end_count - msg_start_count == len(fixture_chain_data)
 
     # Check each message
-    fixture_messages_by_hash = {msg["item_hash"]: msg for msg in fixture_messages}
+    fixture_messages_by_hash = {msg["item_hash"]: msg for msg in fixture_chain_data}
 
     async for pending_msg in PendingMessage.collection.find(
-        {"message.item_hash": {"$in": [msg["item_hash"] for msg in fixture_messages]}}
+        {"message.item_hash": {"$in": [msg["item_hash"] for msg in fixture_chain_data]}}
     ):
         pending_message = pending_msg["message"]
         expected_message = fixture_messages_by_hash[pending_message["item_hash"]]

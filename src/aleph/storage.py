@@ -21,7 +21,7 @@ from aleph.services.ipfs.storage import get_ipfs_content
 from aleph.services.ipfs.storage import pin_add as ipfs_pin_add
 from aleph.services.p2p.http import request_hash as p2p_http_request_hash
 from aleph.services.p2p.singleton import get_streamer
-from aleph.utils import get_sha256, run_in_executor
+from aleph.utils import get_sha256, run_in_executor, item_type_from_hash
 
 LOGGER = logging.getLogger("STORAGE")
 
@@ -67,7 +67,7 @@ async def json_async_loads(s: AnyStr):
 
 
 async def get_message_content(message: Dict) -> MessageContent:
-    item_type: str = message.get("item_type", ItemType.ipfs)
+    item_type: str = message["item_type"]
     item_hash = message["item_hash"]
 
     if item_type in (ItemType.ipfs, ItemType.storage):

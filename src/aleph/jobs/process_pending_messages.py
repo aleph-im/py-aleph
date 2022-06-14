@@ -72,6 +72,7 @@ async def process_message_job_results(
     finished_tasks: Set[asyncio.Task],
     task_message_dict: Dict[asyncio.Task, Dict],
     shared_stats: Dict[str, Any],
+    processing_messages: Set[Tuple],
 ):
     await process_job_results(
         finished_tasks,
@@ -83,6 +84,9 @@ async def process_message_job_results(
         message_type = MessageType(pending["message"]["type"])
         shared_stats["retry_messages_job_tasks"] -= 1
         shared_stats["message_jobs"][message_type] -= 1
+
+        pending_message_id = get_pending_message_id(pending)
+        processing_messages.remove(pending_message_id)
 
         del task_message_dict[message_task]
 
@@ -100,12 +104,26 @@ def validate_pending_message(pending: Dict):
         )
 
 
+def get_pending_message_id(pending_message: Dict) -> Tuple:
+    source = pending_message.get("source", {})
+    chain_name = source.get("chain_name", None)
+    height = source.get("height", None)
+
+    return (
+        pending_message["message"]["item_hash"],
+        pending_message["message"]["sender"],
+        chain_name,
+        height,
+    )
+
+
 async def process_pending_messages(config: Config, shared_stats: Dict):
     """
     Processes all the messages in the pending message queue.
     """
 
     seen_ids: Dict[Tuple, int] = dict()
+    processing_messages = set()
     find_params: Dict = {}
 
     max_concurrent_tasks = config.aleph.jobs.pending_messages.max_concurrency.value
@@ -116,21 +134,30 @@ async def process_pending_messages(config: Config, shared_stats: Dict):
     for message_type in MessageType:
         shared_stats["message_jobs"][message_type] = 0
 
+    # Using a set is required as asyncio.wait takes and returns sets.
+    pending_tasks: Set[asyncio.Task] = set()
+    task_message_dict: Dict[asyncio.Task, Dict] = {}
+
     while await PendingMessage.collection.count_documents(find_params):
-        # Using a set is required as asyncio.wait takes and returns sets.
-        pending_tasks: Set[asyncio.Task] = set()
-        task_message_dict: Dict[asyncio.Task, Dict] = {}
 
         async for pending in PendingMessage.collection.find(find_params).sort(
             [("retries", ASCENDING), ("message.time", ASCENDING)]
         ).batch_size(max_concurrent_tasks):
+
+            # Check if the message is already processing
+            pending_message_id = get_pending_message_id(pending)
+            if pending_message_id in processing_messages:
+                # Skip the message, we're already processing it
+                continue
+
+            processing_messages.add(pending_message_id)
 
             if len(pending_tasks) == max_concurrent_tasks:
                 finished_tasks, pending_tasks = await asyncio.wait(
                     pending_tasks, return_when=asyncio.FIRST_COMPLETED
                 )
                 await process_message_job_results(
-                    finished_tasks, task_message_dict, shared_stats
+                    finished_tasks, task_message_dict, shared_stats, processing_messages
                 )
 
             validate_pending_message(pending)
@@ -148,13 +175,15 @@ async def process_pending_messages(config: Config, shared_stats: Dict):
             pending_tasks.add(message_task)
             task_message_dict[message_task] = pending
 
-        # Wait for the last tasks
+        # This synchronization point is required when a few pending messages remain.
+        # We wait for at least one task to finish; the remaining tasks will be collected
+        # on the next iterations of the loop.
         if pending_tasks:
             finished_tasks, _ = await asyncio.wait(
-                pending_tasks, return_when=asyncio.ALL_COMPLETED
+                pending_tasks, return_when=asyncio.FIRST_COMPLETED
             )
             await process_message_job_results(
-                finished_tasks, task_message_dict, shared_stats
+                finished_tasks, task_message_dict, shared_stats, processing_messages
             )
 
         # TODO: move this to a dedicated job and/or check unicity on insertion

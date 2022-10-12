@@ -146,16 +146,6 @@ async def main(args):
     args = parse_args(args)
     setup_logging(args.loglevel)
 
-    # Generate keys and exit
-    if args.generate_keys:
-        LOGGER.info("Generating a key pair")
-        key_pair = generate_keypair(args.print_key)
-        save_keys(key_pair, args.key_dir)
-        if args.print_key:
-            print(key_pair.private_key.impl.export_key().decode("utf-8"))
-
-        return
-
     LOGGER.info("Loading configuration")
     config = aleph.config.app_config
 

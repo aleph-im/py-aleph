@@ -3,14 +3,11 @@ This migration resets the chain height in order to ensure that a PermanentPin is
 committed on a chain. It has to be run after the introduction of PermanentPin in version 0.2.0.
 """
 
-import logging
-
+import typer
 from configmanager import Config
 
-from aleph.model import PermanentPin
 from aleph.model.chains import Chain
-
-logger = logging.getLogger()
+from aleph.model.filepin import PermanentPin
 
 
 async def upgrade(config: Config, **kwargs):
@@ -19,11 +16,11 @@ async def upgrade(config: Config, **kwargs):
     expected_permanent_pins = 5000
 
     if (await PermanentPin.count(filter={})) < expected_permanent_pins:
-        logger.info("PermanentPin documents missing, fetching chaindata again")
+        typer.echo("PermanentPin documents missing, fetching chaindata again")
         start_height = config.ethereum.start_height.value
         await Chain.set_last_height("ETH", start_height)
     else:
-        logger.info(
+        typer.echo(
             "PermanentPin documents already present, no need to re-fetch chaindata"
         )
 

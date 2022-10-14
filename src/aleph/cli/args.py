@@ -47,21 +47,6 @@ def parse_args(args):
         const=logging.DEBUG,
     )
     parser.add_argument(
-        "-g",
-        "--gen-keys",
-        dest="generate_keys",
-        help="Generate a node key and exit",
-        action="store_true",
-        default=False,
-    )
-    parser.add_argument(
-        "--print-key",
-        dest="print_key",
-        help="Print the generated private key",
-        action="store_true",
-        default=False,
-    )
-    parser.add_argument(
         "-k",
         "--key-dir",
         dest="key_dir",

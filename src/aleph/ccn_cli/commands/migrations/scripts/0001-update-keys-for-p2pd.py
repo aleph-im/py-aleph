@@ -3,22 +3,16 @@ This migration moves the private key file to the key directory and generates two
 a public key, and a serialized version of the private key for use by the P2P service.
 """
 
+from pathlib import Path
+from typing import Optional
 
-import logging
-import os
-
+import typer
+import yaml
 from Crypto.PublicKey import RSA
 from p2pclient.libp2p_stubs.crypto.rsa import KeyPair, RSAPrivateKey
 
 from aleph.exceptions import InvalidKeyDirException
 from aleph.services.keys import save_keys
-from pathlib import Path
-from typing import Optional
-
-import yaml
-
-LOGGER = logging.getLogger(os.path.basename(__file__))
-
 
 SERIALIZED_KEY_FILE = "serialized-node-secret.key"
 
@@ -55,9 +49,8 @@ def upgrade(**kwargs):
     # Nothing to do if the serialized key file already exists
     serialized_key_file = key_dir / SERIALIZED_KEY_FILE
     if serialized_key_file.is_file():
-        LOGGER.info(
-            "Serialized key file {%s} already exists, nothing to do",
-            serialized_key_file,
+        typer.echo(
+            f"Serialized key file {serialized_key_file} already exists, nothing to do"
         )
         return
 
@@ -72,19 +65,18 @@ def upgrade(**kwargs):
         with open(key_file) as f:
             private_key = f.read()
     else:
-        LOGGER.debug("Key file not specified. Looking in the config file...")
+        typer.echo("Key file not specified. Looking in the config file...")
         private_key = get_key_from_config(config_file)
 
     if private_key is None:
         raise ValueError("Key file path not specified and key not provided in config.")
 
-    LOGGER.info(
-        "Migrating the private key in %s and using it to generate a public key "
+    typer.echo(
+        f"Migrating the private key in {key_dir} and using it to generate a public key "
         "and a serialized private key...",
-        key_dir,
     )
     populate_key_dir(private_key, key_dir)
-    LOGGER.info("Migrated the private/public keys in %s.", key_dir)
+    typer.echo(f"Migrated the private/public keys in {key_dir}.")
 
 
 def downgrade(**kwargs):

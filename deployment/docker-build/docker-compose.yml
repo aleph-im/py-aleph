@@ -52,11 +52,12 @@ services:
       - "127.0.0.1:8080:8080"
     volumes:
       - "pyaleph-ipfs:/data/ipfs"
+      - "./kubo.json:/etc/kubo.json:ro"
     environment:
       - IPFS_PROFILE=server
     networks:
       - pyaleph
-    command: ["daemon", "--enable-pubsub-experiment", "--migrate"]
+    command: ["daemon", "--enable-pubsub-experiment", "--migrate", "--config-file", "/etc/kubo.json"]
 
   postgres:
     restart: always

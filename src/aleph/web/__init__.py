@@ -7,6 +7,9 @@ import aiohttp_jinja2
 import jinja2
 import pkg_resources
 from aiohttp import web
+from aiohttp_apispec import (
+    setup_aiohttp_apispec,
+)
 
 from aleph.web.controllers.routes import register_routes
 
@@ -59,5 +62,14 @@ def create_aiohttp_app() -> web.Application:
     register_routes(app)
 
     init_cors(app)
+
+    setup_aiohttp_apispec(
+        app=app,
+        title="Aleph",
+        version="v0",
+        url="/api/docs/json",
+        swagger_path="/api/docs",
+        swagger_ui_static_path="/api/docs/ui",
+    )
 
     return app

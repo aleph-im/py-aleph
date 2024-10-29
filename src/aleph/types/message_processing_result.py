@@ -32,7 +32,7 @@ class ProcessedMessage(MessageProcessingResult):
     def to_dict(self) -> Dict[str, Any]:
         return {
             "status": self.status.value,
-            "message": format_message(self.message).dict(),
+            "message": format_message(self.message).model_dump(),
         }
 
 

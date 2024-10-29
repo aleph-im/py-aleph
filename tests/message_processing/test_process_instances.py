@@ -227,7 +227,7 @@ def insert_volume_refs(session: DbSession, message: PendingMessageDb):
     """
 
     assert message.item_content
-    content = InstanceContent.parse_raw(message.item_content)
+    content = InstanceContent.model_validate_json(message.item_content)
     volumes = get_volume_refs(content)
 
     created = pytz.utc.localize(dt.datetime(2023, 1, 1))
@@ -375,7 +375,9 @@ async def test_process_instance_missing_volumes(
         assert rejected_message.error_code == ErrorCode.VM_VOLUME_NOT_FOUND
 
         if fixture_instance_message.item_content:
-            content = InstanceContent.parse_raw(fixture_instance_message.item_content)
+            content = InstanceContent.model_validate_json(
+                fixture_instance_message.item_content
+            )
             volume_refs = set(volume.ref for volume in get_volume_refs(content))
             assert isinstance(rejected_message.details, dict)
             assert set(rejected_message.details["errors"]) == volume_refs
@@ -453,7 +455,9 @@ async def test_get_volume_size(
         session.commit()
 
     if fixture_instance_message.item_content:
-        content = InstanceContent.parse_raw(fixture_instance_message.item_content)
+        content = InstanceContent.model_validate_json(
+            fixture_instance_message.item_content
+        )
         with session_factory() as session:
             volume_size = get_volume_size(session=session, content=content)
             assert volume_size == 21512585216
@@ -469,7 +473,9 @@ async def test_get_additional_storage_price(
         session.commit()
 
     if fixture_instance_message.item_content:
-        content = InstanceContent.parse_raw(fixture_instance_message.item_content)
+        content = InstanceContent.model_validate_json(
+            fixture_instance_message.item_content
+        )
         with session_factory() as session:
             additional_price = get_additional_storage_price(
                 content=content, session=session
@@ -487,7 +493,9 @@ async def test_get_compute_cost(
         session.commit()
 
     if fixture_instance_message.item_content:
-        content = InstanceContent.parse_raw(fixture_instance_message.item_content)
+        content = InstanceContent.model_validate_json(
+            fixture_instance_message.item_content
+        )
         with session_factory() as session:
             price: Decimal = compute_cost(content=content, session=session)
             assert price == Decimal("2001.8")
@@ -509,7 +517,7 @@ async def test_compare_cost_view_with_cost_function(
     _ = [message async for message in pipeline]
 
     assert fixture_instance_message.item_content
-    content = InstanceContent.parse_raw(fixture_instance_message.item_content)
+    content = InstanceContent.model_validate_json(fixture_instance_message.item_content)
     with session_factory() as session:
         cost_from_function: Decimal = compute_cost(session=session, content=content)
         cost_from_view = session.execute(

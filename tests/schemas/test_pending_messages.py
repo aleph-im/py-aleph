@@ -170,7 +170,7 @@ def test_parse_program_message():
     content = json.loads(message_dict["item_content"])
     assert message.content.address == content["address"]
     assert message.content.time == content["time"]
-    assert message.content.code.dict(exclude_none=True) == content["code"]
+    assert message.content.code.model_dump(exclude_none=True) == content["code"]
     assert message.content.type == content["type"]
 
 

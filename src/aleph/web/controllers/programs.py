@@ -1,5 +1,5 @@
 from aiohttp import web
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from aleph.db.accessors.messages import get_programs_triggered_by_messages
 from aleph.types.db_session import DbSessionFactory
@@ -8,9 +8,7 @@ from aleph.types.sort_order import SortOrder
 
 class GetProgramQueryFields(BaseModel):
     sort_order: SortOrder = SortOrder.DESCENDING
-
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 async def get_programs_on_message(request: web.Request) -> web.Response:

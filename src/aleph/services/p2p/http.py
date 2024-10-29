@@ -28,7 +28,7 @@ async def api_get_request(base_uri, method, timeout=1):
             if resp.status != 200:
                 result = None
             else:
-                result = await resp.json()
+                result = await resp.model_dump_json()
     except (
         TimeoutError,
         asyncio.TimeoutError,

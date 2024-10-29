@@ -162,7 +162,7 @@ async def fetch_messages(
     response.raise_for_status()
     response_json = await response.json()
 
-    return IndexerResponse[IndexerMessageEvent].parse_obj(response_json)
+    return IndexerResponse[IndexerMessageEvent].model_validate(response_json)
 
 
 def indexer_event_to_chain_tx(
@@ -176,7 +176,7 @@ def indexer_event_to_chain_tx(
         publisher=indexer_event.source,
         protocol=ChainSyncProtocol.SMART_CONTRACT,
         protocol_version=1,
-        content=indexer_event.payload.dict(),
+        content=indexer_event.payload.model_dump(),
     )
 
     return chain_tx

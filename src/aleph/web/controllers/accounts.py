@@ -75,7 +75,7 @@ async def get_account_balance(request: web.Request):
     return web.json_response(
         text=GetAccountBalanceResponse(
             address=address, balance=balance, locked_amount=total_cost
-        ).json()
+        ).model_dump_json()
     )
 
 
@@ -83,7 +83,7 @@ async def get_account_files(request: web.Request) -> web.Response:
     address = _get_address_from_request(request)
 
     try:
-        query_params = GetAccountFilesQueryParams.parse_obj(request.query)
+        query_params = GetAccountFilesQueryParams.model_validate(request.query)
     except ValidationError as e:
         raise web.HTTPUnprocessableEntity(text=e.json(indent=4))
 
@@ -112,4 +112,4 @@ async def get_account_files(request: web.Request) -> web.Response:
             pagination_total=nb_files,
             pagination_per_page=query_params.pagination,
         )
-        return web.json_response(text=response.json())
+        return web.json_response(text=response.model_dump_json())

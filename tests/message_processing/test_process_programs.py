@@ -117,7 +117,7 @@ def insert_volume_refs(session: DbSession, message: PendingMessageDb):
     """
 
     assert message.item_content
-    content = ProgramContent.parse_raw(message.item_content)
+    content = ProgramContent.model_validate_json(message.item_content)
     volumes = get_volumes_with_ref(content)
 
     created = pytz.utc.localize(dt.datetime(2023, 1, 1))
@@ -298,7 +298,7 @@ async def test_process_program_missing_volumes(
         assert rejected_message.error_code == ErrorCode.VM_VOLUME_NOT_FOUND
 
         assert program_message.item_content
-        content = ProgramContent.parse_raw(program_message.item_content)
+        content = ProgramContent.model_validate_json(program_message.item_content)
         volume_refs = set(volume.ref for volume in get_volumes_with_ref(content))
         assert isinstance(rejected_message.details, dict)
         assert set(rejected_message.details["errors"]) == volume_refs

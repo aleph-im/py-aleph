@@ -364,7 +364,7 @@ class EthereumConnector(ChainWriter):
                     account,
                     int(gas_price * 1.1),
                     nonce,
-                    sync_event_payload.json(),
+                    sync_event_payload.model_dump_json(),
                 )
                 LOGGER.info("Broadcast %r on %s" % (response, CHAIN_NAME))
 

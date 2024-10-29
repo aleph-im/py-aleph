@@ -14,7 +14,6 @@ from aleph_message.models.execution.instance import RootfsVolume
 from aleph_message.models.execution.volume import (
     ImmutableVolume,
     ParentVolume,
-    PersistentVolumeSizeMib,
     VolumePersistence,
 )
 
@@ -228,16 +227,32 @@ async def test_get_messages_filter_by_tags(
     assert messages[0]["item_hash"] == amend_message_db.item_hash
 
 
-@pytest.mark.parametrize("type_field", ("msgType", "msgTypes"))
 @pytest.mark.asyncio
-async def test_get_by_message_type(fixture_messages, ccn_api_client, type_field: str):
+async def test_get_by_deprecated_message_type(fixture_messages, ccn_api_client):
     messages_by_type = defaultdict(list)
     for message in fixture_messages:
         messages_by_type[message["type"]].append(message)
 
     for message_type, expected_messages in messages_by_type.items():
         response = await ccn_api_client.get(
-            MESSAGES_URI, params={type_field: message_type}
+            MESSAGES_URI, params={"msgType": message_type}
+        )
+        assert response.status == 200, await response.text()
+        messages = (await response.json())["messages"]
+        assert set(msg["item_hash"] for msg in messages) == set(
+            msg["item_hash"] for msg in expected_messages
+        )
+
+
+@pytest.mark.asyncio
+async def test_get_by_message_type(fixture_messages, ccn_api_client):
+    messages_by_type = defaultdict(list)
+    for message in fixture_messages:
+        messages_by_type[message["type"]].append(message)
+
+    for message_type, expected_messages in messages_by_type.items():
+        response = await ccn_api_client.get(
+            MESSAGES_URI, params={"msgTypes": [message_type]}
         )
         assert response.status == 200, await response.text()
         messages = (await response.json())["messages"]
@@ -517,7 +532,7 @@ def instance_message_fixture() -> MessageDb:
                     )
                 ),
                 persistence=VolumePersistence("host"),
-                size_mib=PersistentVolumeSizeMib(1024),
+                size_mib=1024,
             ),
             volumes=[
                 ImmutableVolume(
@@ -527,7 +542,7 @@ def instance_message_fixture() -> MessageDb:
                     use_latest=True,
                 )
             ],
-        ).dict(),
+        ).model_dump(),
         size=3000,
         time=timestamp_to_datetime(1686572207.89381),
         channel=Channel("TEST"),

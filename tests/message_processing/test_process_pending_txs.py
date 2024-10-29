@@ -136,7 +136,7 @@ async def _process_smart_contract_tx(
         publisher="KT1BfL57oZfptdtMFZ9LNakEPvuPPA2urdSW",
         protocol=ChainSyncProtocol.SMART_CONTRACT,
         protocol_version=1,
-        content=payload.dict(),
+        content=payload.model_dump(),
     )
 
     pending_tx = PendingTxDb(tx=tx)
@@ -214,7 +214,7 @@ async def test_process_pending_smart_contract_tx_post(
             type="my-type",
             address="KT1VBeLD7hzKpj17aRJ3Kc6QQFeikCEXi7W6",
             time=1000,
-        ).json(),
+        ).model_dump_json(),
     )
 
     await _process_smart_contract_tx(

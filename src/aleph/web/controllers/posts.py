@@ -2,7 +2,14 @@ from typing import Any, Dict, List, Optional
 
 from aiohttp import web
 from aleph_message.models import ItemHash
-from pydantic import BaseModel, Field, ValidationError, root_validator, validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 from sqlalchemy import select
 
 from aleph.db.accessors.posts import (
@@ -82,30 +89,25 @@ class PostQueryParams(BaseModel):
         "-1 means most recent messages first, 1 means older messages first.",
     )
 
-    @root_validator
-    def validate_field_dependencies(cls, values):
-        start_date = values.get("start_date")
-        end_date = values.get("end_date")
+    @model_validator(mode="after")
+    def validate_field_dependencies(self):
+        start_date = self.start_date
+        end_date = self.end_date
         if start_date and end_date and (end_date < start_date):
             raise ValueError("end date cannot be lower than start date.")
-        return values
 
-    @validator(
-        "addresses",
-        "hashes",
-        "refs",
-        "post_types",
-        "channels",
-        "tags",
-        pre=True,
+        return self
+
+    @field_validator(
+        "addresses", "hashes", "refs", "post_types", "channels", "tags", mode="before"
     )
-    def split_str(cls, v):
+    @classmethod
+    def split_str(cls, v) -> List[str]:
         if isinstance(v, str):
             return v.split(LIST_FIELD_SEPARATOR)
         return v
 
-    class Config:
-        allow_population_by_field_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 def merged_post_to_dict(merged_post: MergedPost) -> Dict[str, Any]:
@@ -173,7 +175,7 @@ def merged_post_v0_to_dict(
 
 def get_query_params(request: web.Request) -> PostQueryParams:
     try:
-        query_params = PostQueryParams.parse_obj(request.query)
+        query_params = PostQueryParams.model_validate(request.query)
     except ValidationError as e:
         raise web.HTTPUnprocessableEntity(text=e.json(indent=4))
 
@@ -188,7 +190,7 @@ async def view_posts_list_v0(request: web.Request) -> web.Response:
     query_string = request.query_string
     query_params = get_query_params(request)
 
-    find_filters = query_params.dict(exclude_none=True)
+    find_filters = query_params.model_dump(exclude_none=True)
 
     pagination_page = query_params.page
     pagination_per_page = query_params.pagination
@@ -231,7 +233,7 @@ async def view_posts_list_v1(request) -> web.Response:
     query_string = request.query_string
 
     try:
-        query_params = PostQueryParams.parse_obj(request.query)
+        query_params = PostQueryParams.model_validate(request.query)
     except ValidationError as e:
         raise web.HTTPUnprocessableEntity(text=e.json(indent=4))
 
@@ -239,7 +241,7 @@ async def view_posts_list_v1(request) -> web.Response:
     if path_page:
         query_params.page = path_page
 
-    find_filters = query_params.dict(exclude_none=True)
+    find_filters = query_params.model_dump(exclude_none=True)
 
     pagination_page = query_params.page
     pagination_per_page = query_params.pagination

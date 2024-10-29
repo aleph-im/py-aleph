@@ -25,10 +25,8 @@ from aleph_message.models import (
     ProgramContent,
     StoreContent,
 )
-from pydantic import BaseModel, Field
-from pydantic.generics import GenericModel
+from pydantic import BaseModel, ConfigDict, Field
 
-import aleph.toolkit.json as aleph_json
 from aleph.db.models import MessageDb
 from aleph.types.message_status import ErrorCode, MessageStatus
 
@@ -39,26 +37,26 @@ ContentType = TypeVar("ContentType", bound=BaseContent)
 class MessageConfirmation(BaseModel):
     """Format of the result when a message has been confirmed on a blockchain"""
 
-    class Config:
-        orm_mode = True
-        json_encoders = {dt.datetime: lambda d: d.timestamp()}
+    model_config = ConfigDict(
+        from_attributes=True, json_encoders={dt.datetime: lambda d: d.timestamp()}
+    )
 
     chain: Chain
     height: int
     hash: str
 
 
-class BaseMessage(GenericModel, Generic[MType, ContentType]):
-    class Config:
-        orm_mode = True
-        json_loads = aleph_json.loads
-        json_encoders = {dt.datetime: lambda d: d.timestamp()}
+class BaseMessage(BaseModel, Generic[MType, ContentType]):
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={dt.datetime: lambda d: d.timestamp()},
+    )
 
     sender: str
     chain: Chain
-    signature: Optional[str]
+    signature: Optional[str] = None
     type: MType
-    item_content: Optional[str]
+    item_content: Optional[str] = None
     item_type: ItemType
     item_hash: str
     time: dt.datetime
@@ -133,7 +131,7 @@ def format_message(message: MessageDb) -> AlephMessage:
 def format_message_dict(message: Dict[str, Any]) -> AlephMessage:
     message_type = message.get("type")
     message_cls = MESSAGE_CLS_DICT[message_type]
-    return message_cls.parse_obj(message)
+    return message_cls.model_validate(message)
 
 
 class BaseMessageStatus(BaseModel):
@@ -145,45 +143,41 @@ class BaseMessageStatus(BaseModel):
 # We already have a model for the validation of pending messages, but this one
 # is only used for formatting and does not try to be smart.
 class PendingMessage(BaseModel):
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
     sender: str
     chain: Chain
-    signature: Optional[str]
+    signature: Optional[str] = None
     type: MessageType
-    item_content: Optional[str]
+    item_content: Optional[str] = None
     item_type: ItemType
     item_hash: str
     time: dt.datetime
     channel: Optional[str] = None
-    content: Optional[Dict[str, Any]]
+    content: Optional[Dict[str, Any]] = None
     reception_time: dt.datetime
 
 
 class PendingMessageStatus(BaseMessageStatus):
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
     status: MessageStatus = MessageStatus.PENDING
     messages: List[PendingMessage]
 
 
 class ProcessedMessageStatus(BaseMessageStatus):
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
     status: MessageStatus = MessageStatus.PROCESSED
     message: AlephMessage
 
 
 class ForgottenMessage(BaseModel):
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
     sender: str
     chain: Chain
-    signature: Optional[str]
+    signature: Optional[str] = None
     type: MessageType
     item_type: ItemType
     item_hash: str
@@ -201,7 +195,7 @@ class RejectedMessageStatus(BaseMessageStatus):
     status: MessageStatus = MessageStatus.REJECTED
     message: Mapping[str, Any]
     error_code: ErrorCode
-    details: Any
+    details: Any = None
 
 
 MessageWithStatus = Union[
@@ -213,9 +207,9 @@ MessageWithStatus = Union[
 
 
 class MessageListResponse(BaseModel):
-    class Config:
-        json_encoders = {dt.datetime: lambda d: d.timestamp()}
-        json_loads = aleph_json.loads
+    model_config = ConfigDict(
+        json_encoders={dt.datetime: lambda d: d.timestamp()},
+    )
 
     messages: List[AlephMessage]
     pagination_page: int

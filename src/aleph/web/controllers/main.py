@@ -98,7 +98,7 @@ async def ccn_metric(request: web.Request) -> web.Response:
     """Fetch metrics for CCN node id"""
 
     session_factory: DbSessionFactory = get_session_factory_from_request(request)
-    query_params = Metrics.parse_obj(request.query)
+    query_params = Metrics.model_validate(request.query)
 
     node_id = _get_node_id_from_request(request)
 
@@ -124,7 +124,7 @@ async def crn_metric(request: web.Request) -> web.Response:
     """Fetch Metric for crn."""
 
     session_factory: DbSessionFactory = get_session_factory_from_request(request)
-    query_params = Metrics.parse_obj(request.query)
+    query_params = Metrics.model_validate(request.query)
 
     node_id = _get_node_id_from_request(request)
 

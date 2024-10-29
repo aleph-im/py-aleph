@@ -182,7 +182,7 @@ def vm_message_to_db(message: MessageDb) -> VmBaseDb:
 
         if content.on.message:
             vm.message_triggers = [
-                subscription.dict() for subscription in content.on.message
+                subscription.model_dump() for subscription in content.on.message
             ]
 
         vm.code_volume = CodeVolumeDb(

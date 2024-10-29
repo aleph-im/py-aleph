@@ -139,4 +139,4 @@ def test_indexer_event_to_aleph_message(message_type: str, message_content: str)
 
     assert tx.protocol == ChainSyncProtocol.SMART_CONTRACT
     assert tx.protocol_version == 1
-    assert tx.content == indexer_event.payload.dict()
+    assert tx.content == indexer_event.payload.model_dump()

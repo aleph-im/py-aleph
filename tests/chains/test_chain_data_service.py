@@ -1,4 +1,5 @@
 import datetime as dt
+import json
 
 import pytest
 from aleph_message.models import (
@@ -44,7 +45,7 @@ async def test_prepare_sync_event_payload(mocker):
         session: DbSession, file_content: bytes, engine: ItemType = ItemType.ipfs
     ) -> str:
         content = file_content
-        archive = OnChainSyncEventPayload.parse_raw(content)
+        archive = OnChainSyncEventPayload.model_validate_json(content)
 
         assert archive.version == 1
         assert len(archive.content.messages) == len(messages)
@@ -86,7 +87,7 @@ async def test_smart_contract_protocol_ipfs_store(
         publisher="KT1BfL57oZfptdtMFZ9LNakEPvuPPA2urdSW",
         protocol=ChainSyncProtocol.SMART_CONTRACT,
         protocol_version=1,
-        content=payload.dict(),
+        content=payload.model_dump(),
     )
 
     chain_data_service = ChainDataService(
@@ -112,7 +113,7 @@ async def test_smart_contract_protocol_ipfs_store(
     assert pending_message.channel is None
 
     assert pending_message.item_content
-    message_content = StoreContent.parse_raw(pending_message.item_content)
+    message_content = StoreContent.model_validate_json(pending_message.item_content)
     assert message_content.item_hash == payload.message_content
     assert message_content.item_type == ItemType.ipfs
     assert message_content.address == payload.addr
@@ -135,7 +136,7 @@ async def test_smart_contract_protocol_regular_message(
         timestamp=1668611900,
         addr="KT1VBeLD7hzKpj17aRJ3Kc6QQFeikCEXi7W6",
         msgtype="POST",
-        msgcontent=content.json(),
+        msgcontent=json.dumps(content.model_dump()),
     )
 
     tx = ChainTxDb(
@@ -146,7 +147,7 @@ async def test_smart_contract_protocol_regular_message(
         publisher="KT1BfL57oZfptdtMFZ9LNakEPvuPPA2urdSW",
         protocol=ChainSyncProtocol.SMART_CONTRACT,
         protocol_version=1,
-        content=payload.dict(),
+        content=payload.model_dump(mode="json"),
     )
 
     chain_data_service = ChainDataService(
@@ -172,7 +173,7 @@ async def test_smart_contract_protocol_regular_message(
     assert pending_message.channel is None
 
     assert pending_message.item_content
-    message_content = PostContent.parse_raw(pending_message.item_content)
+    message_content = PostContent.model_validate_json(pending_message.item_content)
     assert message_content.address == content.address
     assert message_content.time == content.time
     assert message_content.ref == content.ref

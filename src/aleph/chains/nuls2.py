@@ -210,7 +210,7 @@ class Nuls2Connector(ChainWriter):
                 # Required to apply update to the files table in get_chaindata
                 session.commit()
 
-                content = sync_event_payload.json()
+                content = sync_event_payload.model_dump_json()
                 tx = await prepare_transfer_tx(
                     address,
                     [(target_addr, CHEAP_UNIT_FEE)],
@@ -248,7 +248,7 @@ async def get_transactions(
             "pagination": 500,
         },
     ) as resp:
-        jres = await resp.json()
+        jres = await resp.model_dump_json()
         for tx in sorted(jres["transactions"], key=itemgetter("height")):
             if remark is not None and tx["remark"] != remark:
                 continue

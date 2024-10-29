@@ -1,4 +1,5 @@
 import asyncio
+import json
 from typing import Any, Dict, List, Mapping, Optional, Self, Set, Type, Union, cast
 
 import aio_pika.abc
@@ -69,7 +70,7 @@ class ChainDataService:
                 messages=[OnChainMessage.from_orm(message) for message in messages]
             ),
         )
-        archive_content: bytes = archive.json().encode("utf-8")
+        archive_content: bytes = archive.model_dump_json().encode("utf-8")
 
         ipfs_cid = await self.storage_service.add_file(
             session=session, file_content=archive_content, engine=ItemType.ipfs
@@ -166,7 +167,9 @@ class ChainDataService:
         )
 
         try:
-            payload = cast(GenericMessageEvent, payload_model.parse_obj(tx.content))
+            payload = cast(
+                GenericMessageEvent, payload_model.model_validate(tx.content)
+            )
         except ValidationError:
             raise InvalidContent(f"Incompatible tx content for {tx.chain}/{tx.hash}")
 
@@ -189,7 +192,7 @@ class ChainDataService:
                 item_hash=ItemHash(payload.content),
                 metadata=None,
             )
-            item_content = content.json(exclude_none=True)
+            item_content = json.dumps(content.model_dump(exclude_none=True))
         else:
             item_content = payload.content
 

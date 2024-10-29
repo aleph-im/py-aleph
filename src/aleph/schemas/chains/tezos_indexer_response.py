@@ -2,8 +2,7 @@ import datetime as dt
 from enum import Enum
 from typing import Generic, List, TypeVar
 
-from pydantic import BaseModel, Field
-from pydantic.generics import GenericModel
+from pydantic import BaseModel, ConfigDict, Field
 
 PayloadType = TypeVar("PayloadType")
 
@@ -24,7 +23,7 @@ class IndexerStats(BaseModel):
     total_events: int = Field(alias="totalEvents")
 
 
-class IndexerEvent(GenericModel, Generic[PayloadType]):
+class IndexerEvent(BaseModel, Generic[PayloadType]):
     source: str
     timestamp: dt.datetime
     block_level: int = Field(alias="blockLevel")
@@ -34,8 +33,7 @@ class IndexerEvent(GenericModel, Generic[PayloadType]):
 
 
 class MessageEventPayload(BaseModel):
-    class Config:
-        allow_population_by_field_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
     timestamp: float
     addr: str
@@ -67,11 +65,11 @@ IndexerMessageEvent = IndexerEvent[MessageEventPayload]
 IndexerEventType = TypeVar("IndexerEventType", bound=IndexerEvent)
 
 
-class IndexerResponseData(GenericModel, Generic[IndexerEventType]):
+class IndexerResponseData(BaseModel, Generic[IndexerEventType]):
     index_status: IndexerStatus = Field(alias="indexStatus")
     stats: IndexerStats
     events: List[IndexerEventType]
 
 
-class IndexerResponse(GenericModel, Generic[IndexerEventType]):
+class IndexerResponse(BaseModel, Generic[IndexerEventType]):
     data: IndexerResponseData[IndexerEventType]

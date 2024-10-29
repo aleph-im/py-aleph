@@ -93,7 +93,7 @@ def make_events_query(
         model = SyncEvent
         event_type_str = "syncEvents"
 
-    fields = "\n".join(model.__fields__.keys())
+    fields = "\n".join(model.model_fields.keys())
     params: Dict[str, Any] = {
         "blockchain": f'"{blockchain.value}"',
         "limit": limit,
@@ -147,7 +147,7 @@ class AlephIndexerClient:
         response = await self.http_session.post("/", json={"query": query})
         response.raise_for_status()
         response_json = await response.json()
-        return model.parse_obj(response_json)
+        return model.model_validate(response_json)
 
     async def fetch_account_state(
         self,
@@ -196,7 +196,7 @@ def indexer_event_to_chain_tx(
     if isinstance(indexer_event, MessageEvent):
         protocol = ChainSyncProtocol.SMART_CONTRACT
         protocol_version = 1
-        content = indexer_event.dict()
+        content = indexer_event.model_dump()
     else:
         sync_message = aleph_json.loads(indexer_event.message)
 

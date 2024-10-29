@@ -194,7 +194,7 @@ def get_volume_refs(content: ExecutableContent) -> List[ImmutableVolume]:
 
 def insert_volume_refs(session: DbSession, message: PendingMessageDb):
     item_content = message.item_content if message.item_content is not None else ""
-    content = InstanceContent.parse_raw(item_content)
+    content = InstanceContent.model_validate_json(item_content)
     volumes = get_volume_refs(content)
     created = pytz.utc.localize(dt.datetime(2023, 1, 1))
 

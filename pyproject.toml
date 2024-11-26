@@ -62,7 +62,7 @@ dependencies = [
   "sqlalchemy-utils==0.38.3",
   "substrate-interface==1.7.4",
   "types-aiofiles==23.2.0.20240403",
-  "ujson==5.1",                                                                                                            # required by aiocache
+  "ujson==5.10.0",                                                                                                            # required by aiocache
   "urllib3==2.0.7",
   "uvloop==0.21",
   "web3==6.11.2",

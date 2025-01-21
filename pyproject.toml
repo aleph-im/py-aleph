@@ -47,7 +47,7 @@ dependencies = [
   "multiaddr==0.0.9",                                                                                                      # for libp2p-stubs
   "orjson>=3.7.7",                                                                                                         # Minimum version for Python 3.11
   "psycopg2-binary==2.9.5",                                                                                                # Note: psycopg3 is not yet supported by SQLAlchemy
-  "pycryptodome==3.17",                                                                                                    # for libp2p-stubs
+  "pycryptodome==3.21.0",                                                                                                    # for libp2p-stubs
   "pymultihash==0.8.2",                                                                                                    # for libp2p-stubs
   "pynacl==1.5",
   "python-dateutil==2.8.2",

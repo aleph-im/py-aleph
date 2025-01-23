@@ -13,6 +13,7 @@ from sqlalchemy.dialects.postgresql import insert
 from aleph.chains.signature_verifier import SignatureVerifier
 from aleph.db.accessors.files import insert_content_file_pin, upsert_file
 from aleph.db.accessors.messages import (
+    get_forgotten_message,
     get_message_by_item_hash,
     make_confirmation_upsert_query,
     make_message_status_upsert_query,
@@ -21,6 +22,7 @@ from aleph.db.accessors.messages import (
 )
 from aleph.db.accessors.pending_messages import delete_pending_message
 from aleph.db.models import MessageDb, MessageStatusDb, PendingMessageDb
+from aleph.db.models.messages import ForgottenMessageDb
 from aleph.exceptions import (
     ContentCurrentlyUnavailable,
     InvalidContent,
@@ -128,23 +130,6 @@ class BaseMessageHandler:
             raise InvalidMessageFormat(
                 f"Invalid IPFS hash for message {message.item_hash}"
             ) from e
-
-    @staticmethod
-    async def confirm_existing_message(
-        session: DbSession,
-        existing_message: MessageDb,
-        pending_message: PendingMessageDb,
-    ):
-        if pending_message.signature != existing_message.signature:
-            raise InvalidSignature(f"Invalid signature for {pending_message.item_hash}")
-
-        delete_pending_message(session=session, pending_message=pending_message)
-        if tx_hash := pending_message.tx_hash:
-            session.execute(
-                make_confirmation_upsert_query(
-                    item_hash=pending_message.item_hash, tx_hash=tx_hash
-                )
-            )
 
     async def load_fetched_content(
         self, session: DbSession, pending_message: PendingMessageDb
@@ -334,6 +319,17 @@ class MessageHandler(BaseMessageHandler):
                 )
             )
 
+    @staticmethod
+    async def confirm_existing_forgotten_message(
+        session: DbSession,
+        forgotten_message: ForgottenMessageDb,
+        pending_message: PendingMessageDb,
+    ):
+        if pending_message.signature != forgotten_message.signature:
+            raise InvalidSignature(f"Invalid signature for {pending_message.item_hash}")
+
+        delete_pending_message(session=session, pending_message=pending_message)
+
     async def insert_message(
         self, session: DbSession, pending_message: PendingMessageDb, message: MessageDb
     ):
@@ -396,6 +392,7 @@ class MessageHandler(BaseMessageHandler):
                  is a new one or a confirmation.
         """
 
+        # Note: Check if message already exists (and confirm it)
         existing_message = get_message_by_item_hash(
             session=session, item_hash=ItemHash(pending_message.item_hash)
         )
@@ -406,6 +403,19 @@ class MessageHandler(BaseMessageHandler):
                 pending_message=pending_message,
             )
             return ProcessedMessage(message=existing_message, is_confirmation=True)
+
+        # Note: Check if message is already forgotten (and confirm it)
+        # this is to avoid race conditions when a confirmation arrives after the FORGET message has been preocessed
+        forgotten_message = get_forgotten_message(
+            session=session, item_hash=ItemHash(pending_message.item_hash)
+        )
+        if forgotten_message:
+            await self.confirm_existing_forgotten_message(
+                session=session,
+                forgotten_message=forgotten_message,
+                pending_message=pending_message,
+            )
+            return ProcessedMessage(message=forgotten_message, is_confirmation=True)
 
         message = await self.verify_and_fetch(
             session=session, pending_message=pending_message

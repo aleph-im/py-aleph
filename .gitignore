@@ -54,6 +54,6 @@ MANIFEST
 venv*/
 
 # Secret files
-config.yml
+/config.yml
 node-secret.key
 keys/

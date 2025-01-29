@@ -1,0 +1,65 @@
+---
+nuls2:
+  chain_id: 1
+  enabled: false
+  packing_node: false
+  sync_address: NULSd6HgUkssMi6oSjwEn3puNSijLKnyiRV7H
+  api_url: https://apiserver.nuls.io/
+  explorer_url: https://nuls.world/
+  token_contract: NULSd6Hh1FjbnAktH1FFvFnTzfgFnZtgAhYut
+
+
+ethereum:
+  enabled: true
+  # api_url: {{ ALEPH_ETHEREUM_URL }}
+  chain_id: 1
+  packing_node: false
+  sync_contract: "0x166fd4299364B21c7567e163d85D78d2fb2f8Ad5"
+  start_height: 21614811
+  token_contract: "0x27702a26126e0B3702af63Ee09aC4d1A084EF628"
+  token_start_height: 21614792
+
+
+postgres:
+  host: postgres
+  port: 5432
+  user: aleph
+  password: decentralize-everything
+  name: aleph-test
+
+
+storage:
+  store_files: true
+  engine: filesystem
+  folder: /var/lib/pyaleph
+
+
+ipfs:
+  enabled: true
+  host: ipfs
+  port: 5001
+  gateway_port: 8080
+
+
+aleph:
+  queue_topic: ALEPH-TEST
+
+
+p2p:
+  daemon_host: p2p-service
+  http_port: 4024
+  port: 4025
+  control_port: 4030
+  listen_port: 4031
+  reconnect_delay: 60
+
+
+rabbitmq:
+  host: rabbitmq
+  port: 5672
+  username: aleph-p2p
+  password: decentralize-everything
+
+
+sentry:
+  dsn: ""

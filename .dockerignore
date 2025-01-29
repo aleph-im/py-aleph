@@ -55,5 +55,5 @@ MANIFEST
 venv*/
 
 # User configuration with secrets
-config.yml
+/config.yml
 node-secret.key

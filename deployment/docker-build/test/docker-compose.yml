@@ -1,0 +1,48 @@
+---
+
+volumes:
+  pyaleph-ipfs:
+  pyaleph-local-storage:
+  pyaleph-postgres:
+
+
+services:
+  pyaleph:
+    image: localhost/alephim/pyaleph-node-test:build
+    build:
+      dockerfile: ./deployment/docker-build/test/Dockerfile
+      context: ../../..
+    volumes:
+      - pyaleph-local-storage:/var/lib/pyaleph
+      - ./config.yml:/opt/pyaleph/config.yml
+      - ../../..:/opt/pyaleph
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - pyaleph
+    logging:
+      options:
+        max-size: 50m
+
+  postgres:
+    image: postgres:15.1
+    volumes:
+      - pyaleph-postgres:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: aleph
+      POSTGRES_PASSWORD: decentralize-everything
+      POSTGRES_DB: aleph
+    networks:
+      - pyaleph
+    shm_size: "2gb"
+
+  redis:
+    restart: always
+    image: redis:7.0.10
+    networks:
+      - pyaleph
+
+
+networks:
+  pyaleph:

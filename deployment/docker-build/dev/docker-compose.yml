@@ -1,0 +1,133 @@
+---
+
+volumes:
+  pyaleph-ipfs:
+  pyaleph-local-storage:
+  pyaleph-postgres:
+
+
+services:
+  pyaleph:
+    # platform: linux/amd64
+    restart: always
+    # image: alephim/pyaleph-node:0.5.8
+    image: localhost/alephim/pyaleph-node-dev:build
+    build:
+      dockerfile: ./deployment/docker-build/dev/Dockerfile
+      context: ../../..
+    command: --config /opt/pyaleph/config.yml --key-dir /opt/pyaleph/keys -v
+    volumes:
+      - pyaleph-local-storage:/var/lib/pyaleph
+      - ./config.yml:/opt/pyaleph/config.yml
+      - ./keys:/opt/pyaleph/keys
+      - ../../..:/opt/pyaleph
+    depends_on:
+      - postgres
+      - ipfs
+      - p2p-service
+      - redis
+    networks:
+      - pyaleph
+    logging:
+      options:
+        max-size: 50m
+
+  pyaleph-api:
+    # platform: linux/amd64
+    restart: always
+    # image: alephim/pyaleph-node:0.5.8
+    image: localhost/alephim/pyaleph-node:build
+    build:
+      dockerfile: ./deployment/docker-build/dev/Dockerfile
+      context: ../../..
+    command: --config /opt/pyaleph/config.yml --key-dir /opt/pyaleph/keys -v
+    entrypoint: ["bash", "deployment/scripts/run_aleph_ccn_api.sh"]
+    ports:
+      - "4024:4024/tcp"
+    volumes:
+      - pyaleph-local-storage:/var/lib/pyaleph
+      - ./config.yml:/opt/pyaleph/config.yml
+      - ../../..:/opt/pyaleph
+    environment:
+      CCN_CONFIG_API_PORT: 4024
+      CCN_CONFIG_API_NB_WORKERS: 8
+    depends_on:
+      - pyaleph
+    networks:
+      - pyaleph
+    logging:
+      options:
+        max-size: 50m
+
+  p2p-service:
+    restart: always
+    image: alephim/p2p-service:0.1.3
+    networks:
+      - pyaleph
+    volumes:
+      - ./config.yml:/etc/p2p-service/config.yml
+      - ./keys/node-secret.pkcs8.der:/etc/p2p-service/node-secret.pkcs8.der
+    depends_on:
+      - rabbitmq
+    environment:
+      RUST_LOG: info
+    ports:
+      - "4025:4025"
+      - "127.0.0.1:4030:4030"
+    command:
+      - "--config"
+      - "/etc/p2p-service/config.yml"
+      - "--private-key-file"
+      - "/etc/p2p-service/node-secret.pkcs8.der"
+
+  postgres:
+    restart: always
+    image: postgres:15.1
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pyaleph-postgres:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: aleph
+      POSTGRES_PASSWORD: decentralize-everything
+      POSTGRES_DB: aleph
+    networks:
+      - pyaleph
+    shm_size: "2gb"
+
+  rabbitmq:
+    restart: always
+    image: rabbitmq:3.11.15-management
+    networks:
+      - pyaleph
+    environment:
+      RABBITMQ_DEFAULT_USER: aleph-p2p
+      RABBITMQ_DEFAULT_PASS: decentralize-everything
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+
+  redis:
+    restart: always
+    image: redis:7.0.10
+    networks:
+      - pyaleph
+
+  ipfs:
+    restart: always
+    image: ipfs/kubo:v0.15.0
+    ports:
+      - "4001:4001"
+      - "4001:4001/udp"
+      - "127.0.0.1:5001:5001"
+    volumes:
+      - "pyaleph-ipfs:/data/ipfs"
+    environment:
+      - IPFS_PROFILE=server
+    networks:
+      - pyaleph
+    command: ["daemon", "--enable-pubsub-experiment", "--migrate"]
+
+
+networks:
+  pyaleph:

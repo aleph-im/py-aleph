@@ -1,0 +1,36 @@
+[
+  {
+    "chain": "ETH",
+    "sender": "0x696879aE4F6d8DaDD5b8F1cbb1e663B89b08f106",
+    "type": "POST",
+    "channel": "INTEGRATION_TESTS",
+    "signature": "0x271939ae35918d0e90877f2319dd0d9737f8334d52539125743caf2460b3896423ca69b1fc85662443cc0bd4ce91e2fb247d7d8291284d8c431e6962c611c4c31c",
+    "time": 1665758931.005458,
+    "item_type": "inline",
+    "item_content": "{\"address\":\"0x696879aE4F6d8DaDD5b8F1cbb1e663B89b08f106\",\"time\":1665758931.0054002,\"content\":{\"title\":\"My first blog post\",\"body\":\"Ermahgerd, a bleug!\"},\"type\":\"test-post\"}",
+    "item_hash": "9f02e3b5efdbdc0b487359117ae3af40db654892487feae452689a0b84dc1025"
+  },
+  {
+    "chain": "ETH",
+    "channel": "TEST",
+    "sender": "0x696879aE4F6d8DaDD5b8F1cbb1e663B89b08f106",
+    "type": "FORGET",
+    "time": 1652786534.1139255,
+    "item_type": "inline",
+    "item_content": "{\"address\":\"0x696879aE4F6d8DaDD5b8F1cbb1e663B89b08f106\",\"time\":1652786534.1138077,\"hashes\":[\"9f02e3b5efdbdc0b487359117ae3af40db654892487feae452689a0b84dc1025\"]}",
+    "item_hash": "431a0d2f79ecfa859949d2a09f67068ce7ebd4eb777d179ad958be6c79abc66b",
+    "signature": "0x409cdef65af51d6a508a1fdc56c0baa6d1abac7f539ab5f290e3245c522a4c766b930c4196d9f5d8c8c94a4d36c4b65bf04a2773f058f03803b9b0bca2fd85a51b"
+  },
+  {
+    "chain": "ETH",
+    "sender": "0x696879aE4F6d8DaDD5b8F1cbb1e663B89b08f106",
+    "type": "POST",
+    "channel": "INTEGRATION_TESTS",
+    "signature": "0x271939ae35918d0e90877f2319dd0d9737f8334d52539125743caf2460b3896423ca69b1fc85662443cc0bd4ce91e2fb247d7d8291284d8c431e6962c611c4c31c",
+    "time": 1665758931.005458,
+    "item_type": "inline",
+    "item_content": "{\"address\":\"0x696879aE4F6d8DaDD5b8F1cbb1e663B89b08f106\",\"time\":1665758931.0054002,\"content\":{\"title\":\"My first blog post\",\"body\":\"Ermahgerd, a bleug!\"},\"type\":\"test-post\"}",
+    "item_hash": "9f02e3b5efdbdc0b487359117ae3af40db654892487feae452689a0b84dc1025",
+    "tx_hash": "0xfffd825eff4dfeb229d5fe6cfc7ca7f0a6f692fbd0286a6b08b7d0890cbeeb4a"
+  }
+]

@@ -23,6 +23,8 @@ from aleph.types.db_session import DbSession
 
 LOGGER = getLogger("WEB.metrics")
 
+config = get_config()
+
 
 def format_dict_for_prometheus(values: Dict) -> str:
     """Format a dict to a Prometheus tags string"""
@@ -101,8 +103,8 @@ pyaleph_build_info = BuildInfo(
 )
 
 
-# Cache Aleph messages count for 2 minutes
-@cached(ttl=120)
+# Cache Aleph messages count for 2 minutes by default
+@cached(ttl=config.aleph.cache.ttl.total_aleph_messages)
 async def fetch_reference_total_messages() -> Optional[int]:
     """Obtain the total number of Aleph messages from another node."""
     LOGGER.debug("Fetching Aleph messages count")
@@ -124,8 +126,8 @@ async def fetch_reference_total_messages() -> Optional[int]:
             return None
 
 
-# Cache ETH height for 10 minutes
-@cached(ttl=600)
+# Cache ETH height for 10 minutes by default
+@cached(ttl=config.aleph.cache.ttl.eth_height)
 async def fetch_eth_height() -> Optional[int]:
     """Obtain the height of the Ethereum blockchain."""
     LOGGER.debug("Fetching ETH height")
@@ -143,6 +145,8 @@ async def fetch_eth_height() -> Optional[int]:
         return -1  # We got a boggus value!
 
 
+# Cache metrics for 10 seconds by default
+@cached(ttl=config.aleph.cache.ttl.metrics)
 async def get_metrics(session: DbSession, node_cache: NodeCache) -> Metrics:
     sync_messages_reference_total = await fetch_reference_total_messages()
     eth_reference_height = await fetch_eth_height()

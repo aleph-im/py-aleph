@@ -39,6 +39,13 @@ def get_defaults():
                     "max_concurrency": 20,
                 },
             },
+            "cache": {
+                "ttl": {
+                    "total_aleph_messages": 120,
+                    "eth_height": 600,
+                    "metrics": 10,
+                },
+            },
         },
         "p2p": {
             # Port used for HTTP communication between nodes.

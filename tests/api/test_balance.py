@@ -11,6 +11,7 @@ MESSAGES_URI = "/api/v0/addresses/0x9319Ad3B7A8E0eE24f2E639c40D8eD124C5520Ba/bal
 async def test_get_balance(
     ccn_api_client,
     message_processor: PendingMessageProcessor,
+    fixture_product_prices_aggregate_in_db,
     instance_message_with_volumes_in_db,
     fixture_instance_message,
     user_balance: AlephBalanceDb,
@@ -36,6 +37,7 @@ async def test_get_balance(
 async def test_get_balance_with_chain(
     ccn_api_client,
     message_processor: PendingMessageProcessor,
+    fixture_product_prices_aggregate_in_db,
     instance_message_with_volumes_in_db,
     fixture_instance_message,
     user_balance_eth_avax: AlephBalanceDb,

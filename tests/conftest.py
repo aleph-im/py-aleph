@@ -35,10 +35,12 @@ from aleph.db.models import (
     PendingMessageDb,
     StoredFileDb,
 )
+from aleph.db.models.aggregates import AggregateDb, AggregateElementDb
 from aleph.services.cache.node_cache import NodeCache
 from aleph.services.ipfs import IpfsService
 from aleph.services.storage.fileystem_engine import FileSystemStorageEngine
 from aleph.storage import StorageService
+from aleph.toolkit.constants import PRICE_AGGREGATE_KEY, PRICE_AGGREGATE_OWNER
 from aleph.toolkit.timestamp import timestamp_to_datetime
 from aleph.types.db_session import DbSession, DbSessionFactory
 from aleph.types.files import FileTag, FileType
@@ -94,7 +96,7 @@ def session_factory(mock_config):
 
 
 @pytest.fixture
-def mock_config(mocker) -> Config:
+def mock_config() -> Config:
     config: Config = Config(aleph.config.get_defaults())
 
     config_file_path: Path = Path.cwd() / "config.yml"
@@ -244,7 +246,7 @@ def fixture_instance_message(session_factory: DbSessionFactory) -> PendingMessag
 
     pending_message = PendingMessageDb(
         item_hash="734a1287a2b7b5be060312ff5b05ad1bcf838950492e3428f2ac6437a1acad26",
-        type=MessageType.instance,
+        type=MessageType.instance.value,
         chain=Chain.ETH,
         sender="0x9319Ad3B7A8E0eE24f2E639c40D8eD124C5520Ba",
         signature=None,
@@ -376,3 +378,176 @@ def user_balance_eth_avax(session_factory: DbSessionFactory) -> AlephBalanceDb:
 
         session.commit()
     return balance_avax
+
+
+@pytest.fixture
+def fixture_product_prices_aggregate_in_db(session_factory: DbSessionFactory) -> None:
+    with session_factory() as session:
+        item_hash = "7b74b9c5f73e7a0713dbe83a377b1d321ffb4a5411ea3df49790a9720b93a5bF"
+        content = {
+            "program": {
+                "price": {
+                    "storage": {"payg": "0.000000977", "holding": "0.05"},
+                    "compute_unit": {"payg": "0.011", "holding": "200"},
+                },
+                "tiers": [
+                    {"id": "tier-1", "compute_units": 1},
+                    {"id": "tier-2", "compute_units": 2},
+                    {"id": "tier-3", "compute_units": 4},
+                    {"id": "tier-4", "compute_units": 6},
+                    {"id": "tier-5", "compute_units": 8},
+                    {"id": "tier-6", "compute_units": 12},
+                ],
+                "compute_unit": {
+                    "vcpus": 1,
+                    "disk_mib": 2048,
+                    "memory_mib": 2048,
+                },
+            },
+            "storage": {"price": {"storage": {"holding": "0.333333333"}}},
+            "instance": {
+                "price": {
+                    "storage": {"payg": "0.000000977", "holding": "0.05"},
+                    "compute_unit": {"payg": "0.055", "holding": "1000"},
+                },
+                "tiers": [
+                    {"id": "tier-1", "compute_units": 1},
+                    {"id": "tier-2", "compute_units": 2},
+                    {"id": "tier-3", "compute_units": 4},
+                    {"id": "tier-4", "compute_units": 6},
+                    {"id": "tier-5", "compute_units": 8},
+                    {"id": "tier-6", "compute_units": 12},
+                ],
+                "compute_unit": {
+                    "vcpus": 1,
+                    "disk_mib": 20480,
+                    "memory_mib": 2048,
+                },
+            },
+            "web3_hosting": {
+                "price": {"fixed": 50, "storage": {"holding": "0.333333333"}}
+            },
+            "program_persistent": {
+                "price": {
+                    "storage": {"payg": "0.000000977", "holding": "0.05"},
+                    "compute_unit": {"payg": "0.055", "holding": "1000"},
+                },
+                "tiers": [
+                    {"id": "tier-1", "compute_units": 1},
+                    {"id": "tier-2", "compute_units": 2},
+                    {"id": "tier-3", "compute_units": 4},
+                    {"id": "tier-4", "compute_units": 6},
+                    {"id": "tier-5", "compute_units": 8},
+                    {"id": "tier-6", "compute_units": 12},
+                ],
+                "compute_unit": {
+                    "vcpus": 1,
+                    "disk_mib": 20480,
+                    "memory_mib": 2048,
+                },
+            },
+            "instance_gpu_premium": {
+                "price": {
+                    "storage": {"payg": "0.000000977"},
+                    "compute_unit": {"payg": "0.56"},
+                },
+                "tiers": [
+                    {
+                        "id": "tier-1",
+                        "vram": 81920,
+                        "model": "A100",
+                        "compute_units": 16,
+                    },
+                    {
+                        "id": "tier-2",
+                        "vram": 81920,
+                        "model": "H100",
+                        "compute_units": 24,
+                    },
+                ],
+                "compute_unit": {
+                    "vcpus": 1,
+                    "disk_mib": 61440,
+                    "memory_mib": 6144,
+                },
+            },
+            "instance_confidential": {
+                "price": {
+                    "storage": {"payg": "0.000000977", "holding": "0.05"},
+                    "compute_unit": {"payg": "0.11", "holding": "2000"},
+                },
+                "tiers": [
+                    {"id": "tier-1", "compute_units": 1},
+                    {"id": "tier-2", "compute_units": 2},
+                    {"id": "tier-3", "compute_units": 4},
+                    {"id": "tier-4", "compute_units": 6},
+                    {"id": "tier-5", "compute_units": 8},
+                    {"id": "tier-6", "compute_units": 12},
+                ],
+                "compute_unit": {
+                    "vcpus": 1,
+                    "disk_mib": 20480,
+                    "memory_mib": 2048,
+                },
+            },
+            "instance_gpu_standard": {
+                "price": {
+                    "storage": {"payg": "0.000000977"},
+                    "compute_unit": {"payg": "0.28"},
+                },
+                "tiers": [
+                    {
+                        "id": "tier-1",
+                        "vram": 20480,
+                        "model": "RTX 4000 ADA",
+                        "compute_units": 3,
+                    },
+                    {
+                        "id": "tier-2",
+                        "vram": 24576,
+                        "model": "RTX 3090",
+                        "compute_units": 4,
+                    },
+                    {
+                        "id": "tier-3",
+                        "vram": 24576,
+                        "model": "RTX 4090",
+                        "compute_units": 6,
+                    },
+                    {
+                        "id": "tier-4",
+                        "vram": 49152,
+                        "model": "L40S",
+                        "compute_units": 12,
+                    },
+                ],
+                "compute_unit": {
+                    "vcpus": 1,
+                    "disk_mib": 61440,
+                    "memory_mib": 6144,
+                },
+            },
+        }
+
+        session.add(
+            AggregateElementDb(
+                item_hash=item_hash,
+                key=PRICE_AGGREGATE_KEY,
+                owner=PRICE_AGGREGATE_OWNER,
+                content=content,
+                creation_datetime=dt.datetime(2025, 1, 31),
+            )
+        )
+
+        session.add(
+            AggregateDb(
+                key=PRICE_AGGREGATE_KEY,
+                owner=PRICE_AGGREGATE_OWNER,
+                content=content,
+                creation_datetime=dt.datetime(2025, 1, 31),
+                last_revision_hash=item_hash,
+                dirty=False,
+            )
+        )
+
+        session.commit()

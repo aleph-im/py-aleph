@@ -11,29 +11,71 @@ from aleph_message.models.execution.volume import (
     PersistentVolume,
 )
 
+from aleph.db.accessors.aggregates import get_aggregate_by_key
 from aleph.db.accessors.files import get_file_tag, get_message_file_pin
 from aleph.db.models import FileTagDb, MessageFilePinDb, StoredFileDb
-from aleph.toolkit.constants import GiB, MiB
+from aleph.db.models.aggregates import AggregateDb
+from aleph.toolkit.constants import (
+    HOUR,
+    PRICE_AGGREGATE_KEY,
+    PRICE_AGGREGATE_OWNER,
+    MiB,
+)
+from aleph.types.cost import ProductPriceType, ProductPricing
 from aleph.types.db_session import DbSession
 from aleph.types.files import FileTag
 
-MINUTE = 60
-HOUR = 60 * MINUTE
 
-COMPUTE_UNIT_TOKEN_TO_HOLD_ON_DEMAND = Decimal("200")
-COMPUTE_UNIT_TOKEN_TO_HOLD_PERSISTENT = Decimal("1000")
-COMPUTE_UNIT_TOKEN_TO_HOLD_PERSISTENT_CONF = Decimal("2000")
-COMPUTE_UNIT_PRICE_PER_HOUR_ON_DEMAND = Decimal("0.011")
-COMPUTE_UNIT_PRICE_PER_HOUR_PERSISTENT = Decimal("0.055")
-COMPUTE_UNIT_PRICE_PER_HOUR_PERSISTENT_CONF = Decimal("0.11")
+def _is_on_demand(content: ExecutableContent) -> bool:
+    return isinstance(content, ProgramContent) and not content.on.persistent
 
 
-STORAGE_INCLUDED_PER_COMPUTE_UNIT_ON_DEMAND = Decimal("2") * GiB
-STORAGE_INCLUDED_PER_COMPUTE_UNIT_PERSISTENT = Decimal("20") * GiB
+def _is_confidential_vm(
+    content: ExecutableContent, is_on_demand: Optional[bool]
+) -> bool:
+    is_on_demand = is_on_demand or _is_on_demand(content=content)
 
-EXTRA_STORAGE_TOKEN_TO_HOLD = 1 / (Decimal("20") * MiB)  # Hold 1 token for 20 MiB
-EXTRA_STORAGE_PRICE_PER_HOUR = Decimal("0.000000977")
-EXTRA_STORAGE_PRICE_PER_SECOND = EXTRA_STORAGE_PRICE_PER_HOUR / Decimal(HOUR)
+    return (
+        not is_on_demand
+        and isinstance(getattr(content, "environment", None), InstanceEnvironment)
+        and getattr(content.environment, "trusted_execution", False)
+    )
+
+
+def _get_product_price_type(content: ExecutableContent) -> ProductPriceType:
+    is_on_demand = _is_on_demand(content)
+    is_confidential_vm = _is_confidential_vm(content, is_on_demand)
+
+    return (
+        ProductPriceType.PROGRAM
+        if is_on_demand
+        else (
+            ProductPriceType.INSTANCE_CONFIDENTIAL
+            if is_confidential_vm
+            else ProductPriceType.INSTANCE
+        )
+    )
+
+
+# TODO: Cache aggregate for 5 min
+def _get_price_aggregate(session: DbSession) -> AggregateDb:
+    aggregate = get_aggregate_by_key(
+        session=session, owner=PRICE_AGGREGATE_OWNER, key=PRICE_AGGREGATE_KEY
+    )
+
+    if not aggregate:
+        raise Exception()
+
+    return aggregate
+
+
+def _get_product_price(
+    session: DbSession, content: ExecutableContent
+) -> ProductPricing:
+    type = _get_product_price_type(content)
+    aggregate = _get_price_aggregate(session)
+
+    return ProductPricing.from_aggregate(type, aggregate)
 
 
 def _get_file_from_ref(
@@ -50,6 +92,25 @@ def _get_file_from_ref(
         return tag_or_pin.file
 
     return None
+
+
+def _get_nb_compute_units(content: ExecutableContent) -> int:
+    cpu = content.resources.vcpus
+    memory = math.ceil(content.resources.memory / 2048)
+    nb_compute_units = cpu if cpu >= memory else memory
+    return nb_compute_units
+
+
+# TODO: Include this in the aggregate
+def _get_compute_unit_multiplier(content: ExecutableContent) -> int:
+    compute_unit_multiplier = 1
+    if (
+        isinstance(content, ProgramContent)
+        and not content.on.persistent
+        and content.environment.internet
+    ):
+        compute_unit_multiplier += 1
+    return compute_unit_multiplier
 
 
 def get_volume_size(session: DbSession, content: ExecutableContent) -> int:
@@ -90,126 +151,78 @@ def get_volume_size(session: DbSession, content: ExecutableContent) -> int:
     return total_volume_size
 
 
-def get_additional_storage_price(
-    content: ExecutableContent, session: DbSession
+def get_additional_storage_bytes(
+    content: ExecutableContent, pricing: ProductPricing, session: DbSession
 ) -> Decimal:
-    nb_compute_units = Decimal(content.resources.vcpus)
-
-    is_on_demand = isinstance(content, ProgramContent) and not content.on.persistent
+    nb_compute_units = _get_nb_compute_units(content)
     included_storage_per_compute_unit = (
-        STORAGE_INCLUDED_PER_COMPUTE_UNIT_ON_DEMAND
-        if is_on_demand
-        else STORAGE_INCLUDED_PER_COMPUTE_UNIT_PERSISTENT
-    )
+        pricing.compute_unit.disk_mib if pricing.compute_unit else 0
+    ) * MiB
+    total_storage_for_free = included_storage_per_compute_unit * nb_compute_units
 
     total_volume_size = get_volume_size(session, content)
+
     additional_storage = max(
-        Decimal(total_volume_size)
-        - (included_storage_per_compute_unit * nb_compute_units),
-        Decimal(0),
+        total_volume_size - total_storage_for_free,
+        0,
     )
-    return Decimal(additional_storage) * EXTRA_STORAGE_TOKEN_TO_HOLD
+
+    return Decimal(additional_storage)
 
 
-def _get_nb_compute_units(content: ExecutableContent) -> int:
-    cpu = content.resources.vcpus
-    memory = math.ceil(content.resources.memory / 2048)
-    nb_compute_units = cpu if cpu >= memory else memory
-    return nb_compute_units
+def get_additional_storage_price(
+    content: ExecutableContent, pricing: ProductPricing, session: DbSession
+) -> Decimal:
+    additional_storage_bytes = get_additional_storage_bytes(content, pricing, session)
+
+    additional_storage_mib = additional_storage_bytes / MiB
+    price_per_mib = pricing.price.storage.holding
+
+    return additional_storage_mib * price_per_mib
 
 
-def _get_compute_unit_multiplier(content: ExecutableContent) -> int:
-    compute_unit_multiplier = 1
-    if (
-        isinstance(content, ProgramContent)
-        and not content.on.persistent
-        and content.environment.internet
-    ):
-        compute_unit_multiplier += 1
-    return compute_unit_multiplier
+def _get_additional_storage_flow_price(
+    content: ExecutableContent, pricing: ProductPricing, session: DbSession
+) -> Decimal:
+    additional_storage_bytes = get_additional_storage_bytes(content, pricing, session)
+
+    additional_storage_mib = additional_storage_bytes / MiB
+    price_per_mib_hour = pricing.price.storage.payg
+    price_per_mib_second = price_per_mib_hour / HOUR
+
+    return additional_storage_mib * price_per_mib_second
 
 
 def compute_cost(session: DbSession, content: ExecutableContent) -> Decimal:
-    is_on_demand = isinstance(content, ProgramContent) and not content.on.persistent
-    is_confidential_vm = (
-        not is_on_demand
-        and isinstance(getattr(content, "environment", None), InstanceEnvironment)
-        and getattr(content.environment, "trusted_execution", False)
-    )
+    pricing = _get_product_price(session, content)
 
-    compute_unit_cost = (
-        COMPUTE_UNIT_TOKEN_TO_HOLD_ON_DEMAND
-        if is_on_demand
-        else (
-            COMPUTE_UNIT_TOKEN_TO_HOLD_PERSISTENT_CONF
-            if is_confidential_vm
-            else COMPUTE_UNIT_TOKEN_TO_HOLD_PERSISTENT
-        )
-    )
+    compute_unit_cost = pricing.price.compute_unit.holding
 
     compute_units_required = _get_nb_compute_units(content)
     compute_unit_multiplier = _get_compute_unit_multiplier(content)
 
     compute_unit_price = (
-        Decimal(compute_units_required) * compute_unit_multiplier * compute_unit_cost
+        compute_units_required * compute_unit_multiplier * compute_unit_cost
     )
-    price = compute_unit_price + get_additional_storage_price(content, session)
-    return Decimal(price)
+
+    additional_storage_price = get_additional_storage_price(content, pricing, session)
+    return Decimal(compute_unit_price + additional_storage_price)
 
 
 def compute_flow_cost(session: DbSession, content: ExecutableContent) -> Decimal:
-    # TODO: Use PAYMENT_PRICING_AGGREGATE when possible
-    is_on_demand = isinstance(content, ProgramContent) and not content.on.persistent
-    is_confidential_vm = (
-        not is_on_demand
-        and isinstance(getattr(content, "environment", None), InstanceEnvironment)
-        and getattr(content.environment, "trusted_execution", False)
-    )
+    pricing = _get_product_price(session, content)
 
-    compute_unit_cost_hour = (
-        COMPUTE_UNIT_PRICE_PER_HOUR_ON_DEMAND
-        if is_on_demand
-        else (
-            COMPUTE_UNIT_PRICE_PER_HOUR_PERSISTENT_CONF
-            if is_confidential_vm
-            else COMPUTE_UNIT_PRICE_PER_HOUR_PERSISTENT
-        )
-    )
-
+    compute_unit_cost_hour = pricing.price.compute_unit.payg
     compute_unit_cost_second = compute_unit_cost_hour / HOUR
 
     compute_units_required = _get_nb_compute_units(content)
     compute_unit_multiplier = _get_compute_unit_multiplier(content)
 
     compute_unit_price = (
-        Decimal(compute_units_required)
-        * Decimal(compute_unit_multiplier)
-        * Decimal(compute_unit_cost_second)
+        compute_units_required * compute_unit_multiplier * compute_unit_cost_second
     )
 
-    additional_storage_flow_price = get_additional_storage_flow_price(content, session)
-    price = compute_unit_price + additional_storage_flow_price
-    return Decimal(price)
-
-
-def get_additional_storage_flow_price(
-    content: ExecutableContent, session: DbSession
-) -> Decimal:
-    # TODO: Use PAYMENT_PRICING_AGGREGATE when possible
-    nb_compute_units = _get_nb_compute_units(content)
-
-    is_on_demand = isinstance(content, ProgramContent) and not content.on.persistent
-    included_storage_per_compute_unit = (
-        STORAGE_INCLUDED_PER_COMPUTE_UNIT_ON_DEMAND
-        if is_on_demand
-        else STORAGE_INCLUDED_PER_COMPUTE_UNIT_PERSISTENT
+    additional_storage_flow_price = _get_additional_storage_flow_price(
+        content, pricing, session
     )
-
-    total_volume_size = get_volume_size(session, content)
-    additional_storage = max(
-        Decimal(total_volume_size)
-        - (Decimal(included_storage_per_compute_unit) * Decimal(nb_compute_units)),
-        Decimal(0),
-    )
-    price = (additional_storage / MiB) * EXTRA_STORAGE_PRICE_PER_SECOND
-    return price
+    return Decimal(compute_unit_price + additional_storage_flow_price)

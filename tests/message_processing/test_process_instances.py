@@ -40,6 +40,7 @@ from aleph.db.models import (
 )
 from aleph.jobs.process_pending_messages import PendingMessageProcessor
 from aleph.services.cost import (
+    _get_product_price,
     compute_cost,
     get_additional_storage_price,
     get_volume_size,
@@ -370,6 +371,7 @@ async def test_process_instance(
     message_processor: PendingMessageProcessor,
     fixture_instance_message: PendingMessageDb,
     user_balance: AlephBalanceDb,
+    fixture_product_prices_aggregate_in_db,
 ):
     with session_factory() as session:
         insert_volume_refs(session, fixture_instance_message)
@@ -497,6 +499,7 @@ async def test_forget_instance_message(
     fixture_instance_message: PendingMessageDb,
     user_balance: AlephBalanceDb,
     fixture_forget_instance_message: PendingMessageDb,
+    fixture_product_prices_aggregate_in_db,
 ):
     vm_hash = fixture_instance_message.item_hash
 
@@ -571,6 +574,7 @@ async def test_get_volume_size(
 async def test_get_additional_storage_price(
     session_factory: DbSessionFactory,
     fixture_instance_message: PendingMessageDb,
+    fixture_product_prices_aggregate_in_db,
 ):
     with session_factory() as session:
         insert_volume_refs(session, fixture_instance_message)
@@ -579,8 +583,10 @@ async def test_get_additional_storage_price(
     if fixture_instance_message.item_content:
         content = InstanceContent.parse_raw(fixture_instance_message.item_content)
         with session_factory() as session:
+            pricing = _get_product_price(session, content)
+
             additional_price = get_additional_storage_price(
-                content=content, session=session
+                content=content, pricing=pricing, session=session
             )
             assert additional_price == Decimal("1.8")
 
@@ -589,6 +595,7 @@ async def test_get_additional_storage_price(
 async def test_get_compute_cost(
     session_factory: DbSessionFactory,
     fixture_instance_message: PendingMessageDb,
+    fixture_product_prices_aggregate_in_db,
 ):
     with session_factory() as session:
         insert_volume_refs(session, fixture_instance_message)
@@ -607,6 +614,7 @@ async def test_compare_cost_view_with_cost_function(
     message_processor: PendingMessageProcessor,
     fixture_instance_message: PendingMessageDb,
     user_balance: AlephBalanceDb,
+    fixture_product_prices_aggregate_in_db,
 ):
     with session_factory() as session:
         insert_volume_refs(session, fixture_instance_message)
@@ -731,6 +739,7 @@ async def test_compare_cost_view_with_cost_function_without_volume(
     message_processor: PendingMessageProcessor,
     fixture_instance_message_only_rootfs: PendingMessageDb,
     user_balance: AlephBalanceDb,
+    fixture_product_prices_aggregate_in_db,
 ):
     with session_factory() as session:
         insert_volume_refs(session, fixture_instance_message_only_rootfs)

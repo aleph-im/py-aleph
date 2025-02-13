@@ -115,9 +115,22 @@ def do_delete_store(session: DbSession) -> None:
 
     session.execute(
         """
-        DELETE 
-        FROM file_pins fp 
+        DELETE
+        FROM file_pins fp
 	    WHERE fp.item_hash in (
+		    SELECT m.item_hash
+		    FROM messages m
+		    INNER JOIN forgotten_messages fm ON m.item_hash = fm.item_hash
+		    WHERE m.type = 'STORE'
+	    )
+        """
+    )
+
+    session.execute(
+        """
+        DELETE
+        FROM file_tags ft
+	    WHERE ft.tag in (
 		    SELECT m.item_hash 
 		    FROM messages m
 		    INNER JOIN forgotten_messages fm ON m.item_hash = fm.item_hash

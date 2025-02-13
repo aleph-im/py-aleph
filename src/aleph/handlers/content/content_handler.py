@@ -2,6 +2,7 @@ import abc
 from typing import List, Set
 
 from aleph.db.models import MessageDb
+from aleph.db.models.account_costs import AccountCostsDb
 from aleph.permissions import check_sender_authorization
 from aleph.types.db_session import DbSession
 
@@ -47,7 +48,9 @@ class ContentHandler(abc.ABC):
         """
         pass
 
-    async def check_balance(self, session: DbSession, message: MessageDb) -> None:
+    async def check_balance(
+        self, session: DbSession, message: MessageDb
+    ) -> List[AccountCostsDb] | None:
         """
         Checks whether the user has enough Aleph tokens to process the message.
 
@@ -55,6 +58,7 @@ class ContentHandler(abc.ABC):
 
         :param session: DB session.
         :param message: Message being processed.
+        :return: A list of costs related with the message and the resources that are allocated
         """
         pass
 

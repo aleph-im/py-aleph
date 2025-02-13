@@ -50,8 +50,9 @@ from aleph.db.models import (
     VmBaseDb,
     VmInstanceDb,
 )
+from aleph.db.models.account_costs import AccountCostsDb
 from aleph.handlers.content.content_handler import ContentHandler
-from aleph.services.cost import compute_cost
+from aleph.services.cost import get_total_and_detailed_costs
 from aleph.toolkit.timestamp import timestamp_to_datetime
 from aleph.types.db_session import DbSession
 from aleph.types.files import FileTag
@@ -335,21 +336,26 @@ class VmMessageHandler(ContentHandler):
 
     """
 
-    async def check_balance(self, session: DbSession, message: MessageDb) -> None:
+    async def check_balance(
+        self, session: DbSession, message: MessageDb
+    ) -> List[AccountCostsDb]:
         content = _get_vm_content(message)
 
+        required_tokens, costs = get_total_and_detailed_costs(
+            session, content, message.item_hash
+        )
+
+        # NOTE: For now allow to create ephimeral programs for free, but generate a cost depending on the content.payment prop (HOLD / STREAM)
         if isinstance(content, ProgramContent):
             if not content.on.persistent:
-                return
+                return costs
 
+        # NOTE: For now allow to create anything that is being paid with STREAM for free, but generate a cost depending on the content.payment prop (HOLD / STREAM)
         if content.payment and content.payment.is_stream:
-            return
+            return costs
 
-        required_tokens = compute_cost(session=session, content=content)
-
-        current_balance = (
-            get_total_balance(address=content.address, session=session) or 0
-        )
+        # NOTE: Instances and persistent Programs being paid by HOLD are the only ones being checked for now
+        current_balance = get_total_balance(address=content.address, session=session)
         current_instance_costs = get_total_cost_for_address(
             session=session, address=content.address
         )
@@ -359,6 +365,8 @@ class VmMessageHandler(ContentHandler):
                 balance=Decimal(current_balance),
                 required_balance=current_instance_costs + required_tokens,
             )
+
+        return costs
 
     async def check_dependencies(self, session: DbSession, message: MessageDb) -> None:
         content = _get_vm_content(message)

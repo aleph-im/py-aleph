@@ -61,7 +61,7 @@ def count_balances_by_chain(session: DbSession, pagination: int = 0, **kwargs):
 
 def get_total_balance(
     session: DbSession, address: str, include_dapps: bool = False
-) -> Optional[Decimal]:
+) -> Decimal:
     where_clause = AlephBalanceDb.address == address
     if not include_dapps:
         where_clause = where_clause & AlephBalanceDb.dapp.is_(None)
@@ -74,10 +74,7 @@ def get_total_balance(
     )
 
     result = session.execute(select_stmt).one_or_none()
-    if result is None:
-        return None
-
-    return result.balance
+    return Decimal(0) if result is None else result.balance or Decimal(0)
 
 
 def get_total_detailed_balance(

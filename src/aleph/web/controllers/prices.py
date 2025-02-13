@@ -10,10 +10,17 @@ from aleph_message.models import ExecutableContent, ItemHash, MessageType
 from dataclasses_json import DataClassJsonMixin
 from pydantic import BaseModel, Field
 
+import aleph.toolkit.json as aleph_json
 from aleph.db.accessors.messages import get_message_by_item_hash, get_message_status
 from aleph.db.models import MessageDb
 from aleph.db.models.pending_messages import PendingMessageDb
-from aleph.services.cost import compute_cost, compute_flow_cost
+from aleph.schemas.api.costs import EstimatedCostsResponse
+from aleph.services.cost import (
+    get_get_total_and_detailed_costs_from_db,
+    get_payment_type,
+    get_total_and_detailed_costs,
+)
+from aleph.toolkit.costs import format_cost_str
 from aleph.types.db_session import DbSession
 from aleph.types.message_status import MessageStatus
 from aleph.web.controllers.app_state_getters import (
@@ -72,9 +79,13 @@ async def get_executable_message(session: DbSession, item_hash_str: str) -> Mess
     message: Optional[MessageDb] = get_message_by_item_hash(session, item_hash)
     if not message:
         raise web.HTTPNotFound(body="Message not found, despite appearing as processed")
-    if message.type not in (MessageType.instance, MessageType.program):
+    if message.type not in (
+        MessageType.instance,
+        MessageType.program,
+        MessageType.store,
+    ):
         raise web.HTTPBadRequest(
-            body=f"Message is not an executable message: {item_hash_str}"
+            body=f"Message is not an executable or store message: {item_hash_str}"
         )
 
     return message
@@ -85,23 +96,29 @@ async def message_price(request: web.Request):
 
     session_factory = get_session_factory_from_request(request)
     with session_factory() as session:
-        message = await get_executable_message(session, request.match_info["item_hash"])
-
+        item_hash = request.match_info["item_hash"]
+        message = await get_executable_message(session, item_hash)
         content: ExecutableContent = message.parsed_content
+
         try:
-            if content.payment and content.payment.is_stream:
-                required_tokens = compute_flow_cost(session=session, content=content)
-            else:
-                required_tokens = compute_cost(session=session, content=content)
+            payment_type = get_payment_type(content)
+            required_tokens, costs = get_get_total_and_detailed_costs_from_db(
+                session, content, item_hash
+            )
+
         except RuntimeError as e:
             raise web.HTTPNotFound(reason=str(e))
 
-    return web.json_response(
-        {
-            "required_tokens": float(required_tokens),
-            "payment_type": content.payment.type if content.payment else None,
-        }
-    )
+    model = {
+        "required_tokens": float(required_tokens),
+        "payment_type": payment_type,
+        "cost": format_cost_str(required_tokens),
+        "detail": costs,
+    }
+
+    response = EstimatedCostsResponse.parse_obj(model)
+
+    return web.json_response(text=aleph_json.dumps(response).decode("utf-8"))
 
 
 class PubMessageRequest(BaseModel):
@@ -131,19 +148,25 @@ async def message_price_estimate(request: web.Request):
             content_size=len(content_dict.raw_value),
         )
 
+        item_hash = message.item_hash
         content: ExecutableContent = message.parsed_content
 
         try:
-            if content.payment and content.payment.is_stream:
-                required_tokens = compute_flow_cost(session=session, content=content)
-            else:
-                required_tokens = compute_cost(session=session, content=content)
+            payment_type = get_payment_type(content)
+            required_tokens, costs = get_total_and_detailed_costs(
+                session, content, item_hash
+            )
+
         except RuntimeError as e:
             raise web.HTTPNotFound(reason=str(e))
 
-    return web.json_response(
-        {
-            "required_tokens": float(required_tokens),
-            "payment_type": content.payment.type if content.payment else None,
-        }
-    )
+    model = {
+        "required_tokens": float(required_tokens),
+        "payment_type": payment_type,
+        "cost": format_cost_str(required_tokens),
+        "detail": costs,
+    }
+
+    response = EstimatedCostsResponse.parse_obj(model)
+
+    return web.json_response(text=aleph_json.dumps(response).decode("utf-8"))

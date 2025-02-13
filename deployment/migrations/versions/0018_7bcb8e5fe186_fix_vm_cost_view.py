@@ -5,14 +5,16 @@ Revises: f9fa39b6bdef
 Create Date: 2023-08-04 15:14:39.082370
 
 """
+
 from alembic import op
 
 
 # revision identifiers, used by Alembic.
-revision = '7bcb8e5fe186'
-down_revision = 'f9fa39b6bdef'
+revision = "7bcb8e5fe186"
+down_revision = "f9fa39b6bdef"
 branch_labels = None
 depends_on = None
+
 
 def upgrade() -> None:
     op.execute(

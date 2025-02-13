@@ -1,7 +1,7 @@
 import math
 from decimal import Decimal
 from functools import reduce
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, TypeAlias, Union
 
 from aleph_message.models import (
     ExecutableContent,
@@ -36,7 +36,7 @@ from aleph.types.cost import (
 from aleph.types.db_session import DbSession
 from aleph.types.files import FileTag
 
-type CostComputableContent = ExecutableContent | StoreContent
+CostComputableContent: TypeAlias = InstanceContent | ProgramContent | StoreContent
 
 
 def get_payment_type(content: CostComputableContent) -> PaymentType:
@@ -261,6 +261,7 @@ def _get_execution_volumes_costs(
                 SizedVolume(
                     CostType.EXECUTION_VOLUME_PERSISTENT,
                     volume.size_mib,
+                    None,
                     volume.mount,
                 ),
             )
@@ -434,7 +435,7 @@ def get_total_and_detailed_costs(
     return Decimal(cost), list(costs)
 
 
-def get_get_total_and_detailed_costs_from_db(
+def get_total_and_detailed_costs_from_db(
     session: DbSession,
     content: ExecutableContent,
     item_hash: str,

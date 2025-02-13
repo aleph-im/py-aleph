@@ -22,7 +22,7 @@ class AccountCostsDb(Base):
     type: CostType = Column(ChoiceType(CostType), nullable=False)
     name: str = Column(String, nullable=False)
     ref: Optional[str] = Column(String, nullable=True)
-    payment_type = Column(ChoiceType(PaymentType), nullable=False)
+    payment_type: PaymentType = Column(ChoiceType(PaymentType), nullable=False)
     cost_hold: Decimal = Column(DECIMAL, nullable=False)
     cost_stream: Decimal = Column(DECIMAL, nullable=False)
 

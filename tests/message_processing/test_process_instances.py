@@ -24,7 +24,6 @@ from aleph_message.models.execution.program import (
 )
 from aleph_message.models.execution.volume import ImmutableVolume, ParentVolume
 from more_itertools import one
-from sqlalchemy import text
 
 from aleph.db.accessors.files import insert_message_file_pin, upsert_file_tag
 from aleph.db.accessors.messages import get_message_status, get_rejected_message
@@ -40,10 +39,10 @@ from aleph.db.models import (
 )
 from aleph.jobs.process_pending_messages import PendingMessageProcessor
 from aleph.services.cost import (
+    _get_additional_storage_price,
     _get_product_price,
-    compute_cost,
-    get_additional_storage_price,
-    get_volume_size,
+    get_total_and_detailed_costs,
+    get_total_and_detailed_costs_from_db,
 )
 from aleph.toolkit.timestamp import timestamp_to_datetime
 from aleph.types.db_session import DbSession, DbSessionFactory
@@ -114,6 +113,7 @@ def fixture_instance_message(session_factory: DbSessionFactory) -> PendingMessag
                 "comment": "Raw drive to use by a process, do not mount it",
                 "name": "raw-data",
                 "persistence": "host",
+                "mount": "/var/raw",
                 "size_mib": 10,
             },
         ],
@@ -221,6 +221,7 @@ def fixture_instance_message_payg(
                 "comment": "Raw drive to use by a process, do not mount it",
                 "name": "raw-data",
                 "persistence": "host",
+                "mount": "/var/raw",
                 "size_mib": 10,
             },
         ],
@@ -555,22 +556,6 @@ async def test_process_instance_balance(
 
 
 @pytest.mark.asyncio
-async def test_get_volume_size(
-    session_factory: DbSessionFactory,
-    fixture_instance_message: PendingMessageDb,
-):
-    with session_factory() as session:
-        insert_volume_refs(session, fixture_instance_message)
-        session.commit()
-
-    if fixture_instance_message.item_content:
-        content = InstanceContent.parse_raw(fixture_instance_message.item_content)
-        with session_factory() as session:
-            volume_size = get_volume_size(session=session, content=content)
-            assert volume_size == 21512585216
-
-
-@pytest.mark.asyncio
 async def test_get_additional_storage_price(
     session_factory: DbSessionFactory,
     fixture_instance_message: PendingMessageDb,
@@ -585,15 +570,23 @@ async def test_get_additional_storage_price(
         with session_factory() as session:
             pricing = _get_product_price(session, content)
 
-            additional_price = get_additional_storage_price(
-                content=content, pricing=pricing, session=session
+            additional_price = _get_additional_storage_price(
+                content=content,
+                pricing=pricing,
+                session=session,
+                item_hash=fixture_instance_message.item_hash,
+                payment_type=PaymentType.hold,
             )
-            assert additional_price == Decimal("1.8")
+
+            cost = sum(c.cost_hold for c in additional_price)
+
+            assert cost == Decimal("1.8")
 
 
 @pytest.mark.asyncio
-async def test_get_compute_cost(
+async def test_get_total_and_detailed_costs_from_db(
     session_factory: DbSessionFactory,
+    message_processor: PendingMessageProcessor,
     fixture_instance_message: PendingMessageDb,
     fixture_product_prices_aggregate_in_db,
 ):
@@ -601,15 +594,24 @@ async def test_get_compute_cost(
         insert_volume_refs(session, fixture_instance_message)
         session.commit()
 
+    pipeline = message_processor.make_pipeline()
+    # Exhaust the iterator
+    _ = [message async for message in pipeline]
+
     if fixture_instance_message.item_content:
         content = InstanceContent.parse_raw(fixture_instance_message.item_content)
         with session_factory() as session:
-            price: Decimal = compute_cost(content=content, session=session)
-            assert price == Decimal("1001.8")
+            cost, _ = get_total_and_detailed_costs(
+                session=session,
+                content=content,
+                item_hash=fixture_instance_message.item_hash,
+            )
+
+            assert cost == Decimal("1001.8")
 
 
 @pytest.mark.asyncio
-async def test_compare_cost_view_with_cost_function(
+async def test_compare_account_cost_with_cost_function_hold(
     session_factory: DbSessionFactory,
     message_processor: PendingMessageProcessor,
     fixture_instance_message: PendingMessageDb,
@@ -627,17 +629,23 @@ async def test_compare_cost_view_with_cost_function(
     assert fixture_instance_message.item_content
     content = InstanceContent.parse_raw(fixture_instance_message.item_content)
     with session_factory() as session:
-        cost_from_function: Decimal = compute_cost(session=session, content=content)
-        cost_from_view = session.execute(
-            text("SELECT total_price from vm_costs_view WHERE vm_hash = :vm_hash"),
-            {"vm_hash": fixture_instance_message.item_hash},
-        ).scalar_one()
+        db_cost, _ = get_total_and_detailed_costs_from_db(
+            session=session,
+            content=content,
+            item_hash=fixture_instance_message.item_hash,
+        )
 
-    assert Decimal(str(cost_from_view)) == cost_from_function
+        cost, _ = get_total_and_detailed_costs(
+            session=session,
+            content=content,
+            item_hash=fixture_instance_message.item_hash,
+        )
+
+    assert db_cost == cost
 
 
 @pytest.mark.asyncio
-async def test_compare_cost_view_with_cost_function_payg(
+async def test_compare_account_cost_with_cost_payg_funct(
     session_factory: DbSessionFactory,
     message_processor: PendingMessageProcessor,
     fixture_instance_message_payg: PendingMessageDb,
@@ -652,18 +660,27 @@ async def test_compare_cost_view_with_cost_function_payg(
     _ = [message async for message in pipeline]
 
     assert fixture_instance_message_payg.item_content
+
     content = InstanceContent.parse_raw(
         fixture_instance_message_payg.item_content
     )  # Parse again
+
     with session_factory() as session:
         assert content.payment.type == PaymentType.superfluid
-        cost_from_view = session.execute(
-            text("SELECT total_price from vm_costs_view WHERE vm_hash = :vm_hash"),
-            {"vm_hash": fixture_instance_message_payg.item_hash},
-        ).scalar_one()
+        cost, details = get_total_and_detailed_costs(
+            session=session,
+            content=content,
+            item_hash=fixture_instance_message_payg.item_hash,
+        )
 
-    ## Price Handle
-    assert Decimal(str(cost_from_view)) == 0
+        db_cost, details = get_total_and_detailed_costs_from_db(
+            session=session,
+            content=content,
+            item_hash=fixture_instance_message_payg.item_hash,
+        )
+
+    assert cost == 0
+    assert cost == db_cost
 
 
 @pytest.fixture
@@ -734,7 +751,7 @@ def fixture_instance_message_only_rootfs(
 
 
 @pytest.mark.asyncio
-async def test_compare_cost_view_with_cost_function_without_volume(
+async def test_compare_account_cost_with_cost_function_without_volume(
     session_factory: DbSessionFactory,
     message_processor: PendingMessageProcessor,
     fixture_instance_message_only_rootfs: PendingMessageDb,
@@ -754,10 +771,13 @@ async def test_compare_cost_view_with_cost_function_without_volume(
         fixture_instance_message_only_rootfs.item_content
     )
     with session_factory() as session:
-        cost_from_function: Decimal = compute_cost(session=session, content=content)
-        cost_from_view = session.execute(
-            text("SELECT total_price from vm_costs_view WHERE vm_hash = :vm_hash"),
-            {"vm_hash": fixture_instance_message_only_rootfs.item_hash},
-        ).scalar_one()
+        cost, details = get_total_and_detailed_costs(
+            session=session, content=content, item_hash="abab"
+        )
 
-    assert Decimal(str(cost_from_view)) == cost_from_function
+        db_cost, details = get_total_and_detailed_costs_from_db(
+            session=session,
+            content=content,
+            item_hash=fixture_instance_message_only_rootfs.item_hash,
+        )
+    assert db_cost == cost
